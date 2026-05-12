@@ -1,32 +1,12 @@
-//
-//  GatherTabApp.swift
-//  GatherTab
-//
-//  Created by Nohyunsoo on 5/12/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct GatherTabApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        .defaultSize(width: AppLayout.defaultWindowWidth, height: AppLayout.defaultWindowHeight)
+        .windowResizability(.contentMinSize)
     }
 }

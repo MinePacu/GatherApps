@@ -1,59 +1,72 @@
-//
-//  ContentView.swift
-//  GatherTab
-//
-//  Created by Nohyunsoo on 5/12/26.
-//
-
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var store = AppGroupStore()
+    @State private var selectedGroupID: AppGroup.ID?
+    @State private var isShowingCreateGroup = false
+    @State private var switcherWindowController = SwitcherWindowController()
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            SidebarView(
+                store: store,
+                selection: $selectedGroupID,
+                onCreateGroup: { isShowingCreateGroup = true }
+            )
         } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            if let selectedGroupID {
+                GroupDetailView(store: store, groupID: selectedGroupID)
+            } else {
+                ContentUnavailableView("그룹을 선택하세요", systemImage: "square.grid.2x2")
             }
+        }
+        .frame(
+            minWidth: AppLayout.minimumWindowWidth,
+            idealWidth: AppLayout.defaultWindowWidth,
+            minHeight: AppLayout.minimumWindowHeight,
+            idealHeight: AppLayout.defaultWindowHeight
+        )
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    // TODO: Wire the future global shortcut service to this same entry point.
+                    switcherWindowController.showSwitcher(store: store)
+                } label: {
+                    Label("스위처 열기", systemImage: "square.grid.2x2")
+                }
+            }
+        }
+        .onAppear {
+            selectedGroupID = selectedGroupID ?? store.groups.first?.id
+        }
+        .onOpenURL { url in
+            if let groupID = store.handleActivationURL(url) {
+                selectedGroupID = groupID
+            }
+        }
+        .sheet(isPresented: $isShowingCreateGroup) {
+            CreateGroupSheet { name in
+                store.createGroup(named: name)
+                selectedGroupID = store.groups.last?.id
+            }
+        }
+        .alert(
+            "오류",
+            isPresented: Binding(
+                get: { store.lastErrorMessage != nil },
+                set: { if !$0 { store.lastErrorMessage = nil } }
+            )
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(store.lastErrorMessage ?? "")
         }
     }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+enum AppLayout {
+    static let minimumWindowWidth: CGFloat = 1040
+    static let defaultWindowWidth: CGFloat = 1160
+    static let minimumWindowHeight: CGFloat = 540
+    static let defaultWindowHeight: CGFloat = 640
 }
