@@ -166,10 +166,21 @@ struct GroupDetailView: View {
     private var launcherMessage: some View {
         Group {
             if let result = store.lastLauncherGenerationResult {
-                Text("런처 생성됨: \(result.appURL.path)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                HStack(spacing: 8) {
+                    Text("런처 생성됨: \(result.appURL.path)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+
+                    Spacer()
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([result.appURL])
+                    } label: {
+                        Label("Finder에서 보기", systemImage: "magnifyingglass")
+                    }
+                    .controlSize(.small)
+                }
             }
         }
         .padding([.horizontal, .bottom], 12)

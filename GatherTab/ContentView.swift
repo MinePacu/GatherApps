@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -41,7 +42,11 @@ struct ContentView: View {
         }
         .onOpenURL { url in
             if let groupID = store.handleActivationURL(url) {
-                selectedGroupID = groupID
+                if GatherTabURLScheme.showsGatherTabWindow(from: url) {
+                    selectedGroupID = groupID
+                } else {
+                    NSApp.hide(nil)
+                }
             }
         }
         .sheet(isPresented: $isShowingCreateGroup) {

@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct GatherTabApp: App {
     var body: some Scene {
-        WindowGroup {
+        Window("GatherTab", id: "main") {
             ContentView()
         }
         .defaultSize(width: AppLayout.defaultWindowWidth, height: AppLayout.defaultWindowHeight)

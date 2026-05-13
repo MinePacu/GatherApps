@@ -12,6 +12,22 @@ final class GatherTabTests: XCTestCase {
         XCTAssertEqual(GatherTabURLScheme.groupID(from: url), groupID)
     }
 
+    func testActivationURLCanRequestBackgroundActivation() {
+        let groupID = UUID()
+        let url = GatherTabURLScheme.activationURL(for: groupID, showsGatherTabWindow: false)
+
+        XCTAssertEqual(url.absoluteString, "gathertab://activate-group/\(groupID.uuidString)?showWindow=false")
+        XCTAssertEqual(GatherTabURLScheme.groupID(from: url), groupID)
+        XCTAssertFalse(GatherTabURLScheme.showsGatherTabWindow(from: url))
+    }
+
+    func testPlainActivationURLDefaultsToShowingGatherTabWindow() {
+        let groupID = UUID()
+        let url = GatherTabURLScheme.activationURL(for: groupID)
+
+        XCTAssertTrue(GatherTabURLScheme.showsGatherTabWindow(from: url))
+    }
+
     func testWindowHelperIdentifierUsesMainAppBundlePrefix() {
         XCTAssertEqual(WindowHelperConfiguration.loginItemIdentifier, "com.minepacu.GatherTab.WindowHelper")
     }
@@ -160,11 +176,20 @@ final class GatherTabTests: XCTestCase {
         let group = AppGroup(name: "Dev/Test")
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("GatherTabLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
         defer {
             try? FileManager.default.removeItem(at: destination)
         }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
-        let result = try LauncherAppGeneratorService()
+        let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
             .generateLauncher(for: group, destinationDirectory: destination)
 
         let infoPlistURL = result.appURL.appendingPathComponent("Contents/Info.plist")
@@ -182,7 +207,54 @@ final class GatherTabTests: XCTestCase {
 
         XCTAssertEqual(info["CFBundleName"] as? String, "GatherTab - Dev-Test")
         XCTAssertEqual(info["GatherTabGroupID"] as? String, group.id.uuidString)
+        XCTAssertEqual(info["GatherTabShowsGatherTabWindow"] as? Bool, false)
         XCTAssertEqual(info["CFBundleIdentifier"] as? String, result.bundleIdentifier)
+        XCTAssertNil(info["LSUIElement"])
+        XCTAssertNil(info["LSBackgroundOnly"])
+    }
+
+    func testLauncherGeneratorDefaultsToUserApplicationsLaunchersDirectory() throws {
+        let runtimeExecutableURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherDefaultDestinationRuntime-\(UUID().uuidString)")
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: runtimeExecutableURL)
+        }
+
+        let generator = LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
+
+        XCTAssertEqual(
+            try generator.defaultDestinationDirectory(),
+            try AppSupportPaths.userLaunchersDirectory
+        )
+    }
+
+    func testLauncherGeneratorCopiesRuntimeExecutableForCommandTabVisibility() throws {
+        let group = AppGroup(name: "Command Tab")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherRuntimeTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let runtimeContents = "compiled foreground runtime"
+        try runtimeContents.write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
+            .generateLauncher(for: group, destinationDirectory: destination)
+
+        let executableURL = result.appURL.appendingPathComponent("Contents/MacOS/GatherTabLauncher")
+        let generatedContents = try String(contentsOf: executableURL, encoding: .utf8)
+
+        XCTAssertEqual(generatedContents, runtimeContents)
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executableURL.path))
     }
 }
 

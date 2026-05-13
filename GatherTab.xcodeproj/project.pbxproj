@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0DCF40D16DAB404C8D0FD0FC /* GatherTabWindowHelper.app in Copy Login Item */ = {isa = PBXBuildFile; fileRef = 136320E4D79A482799D3A83A /* GatherTabWindowHelper.app */; };
+		9A4C3C4A8DBE4AA6B9141E02 /* GatherTabLauncherRuntime in Copy Launcher Runtime */ = {isa = PBXBuildFile; fileRef = 9A4C3C4692C64C21A39753ED /* GatherTabLauncherRuntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +33,13 @@
 			remoteGlobalIDString = CFB2DC88E77442B5A211792D;
 			remoteInfo = GatherTabWindowHelper;
 		};
+		F51087D7F6E64AA2B73CD9C4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8823D9B1F84843F6AA7C3177;
+			remoteInfo = GatherTabLauncherRuntime;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,10 +54,22 @@
 			name = "Copy Login Item";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		35C675310F604AE4938D8F40 /* Copy Launcher Runtime */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Resources/LauncherRuntime;
+			dstSubfolderSpec = 1;
+			files = (
+				9A4C3C4A8DBE4AA6B9141E02 /* GatherTabLauncherRuntime in Copy Launcher Runtime */,
+			);
+			name = "Copy Launcher Runtime";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		136320E4D79A482799D3A83A /* GatherTabWindowHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GatherTabWindowHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A4C3C4692C64C21A39753ED /* GatherTabLauncherRuntime */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = GatherTabLauncherRuntime; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D9A68F62FB3179F001A1BCF /* GatherTab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GatherTab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D9A69052FB317A1001A1BCF /* GatherTabTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherTabTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D9A690F2FB317A1001A1BCF /* GatherTabUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherTabUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,6 +89,11 @@
 		64A7DD831BA343D39853004A /* GatherTabWindowHelper */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = GatherTabWindowHelper;
+			sourceTree = "<group>";
+		};
+		97BB379DC1FA41D79C14BAE8 /* GatherTabLauncherRuntime */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GatherTabLauncherRuntime;
 			sourceTree = "<group>";
 		};
 		7D9A68F82FB3179F001A1BCF /* GatherTab */ = {
@@ -120,6 +145,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F78F3324C9CB4980BD1239A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -128,6 +160,7 @@
 			children = (
 				7D9A68F82FB3179F001A1BCF /* GatherTab */,
 				64A7DD831BA343D39853004A /* GatherTabWindowHelper */,
+				97BB379DC1FA41D79C14BAE8 /* GatherTabLauncherRuntime */,
 				7D9A69082FB317A1001A1BCF /* GatherTabTests */,
 				7D9A69122FB317A1001A1BCF /* GatherTabUITests */,
 				7D9A68F72FB3179F001A1BCF /* Products */,
@@ -139,6 +172,7 @@
 			children = (
 				7D9A68F62FB3179F001A1BCF /* GatherTab.app */,
 				136320E4D79A482799D3A83A /* GatherTabWindowHelper.app */,
+				9A4C3C4692C64C21A39753ED /* GatherTabLauncherRuntime */,
 				7D9A69052FB317A1001A1BCF /* GatherTabTests.xctest */,
 				7D9A690F2FB317A1001A1BCF /* GatherTabUITests.xctest */,
 			);
@@ -156,11 +190,13 @@
 				7D9A68F32FB3179F001A1BCF /* Frameworks */,
 				7D9A68F42FB3179F001A1BCF /* Resources */,
 				639A6BFB21FF437FADFF604E /* Copy Login Item */,
+				35C675310F604AE4938D8F40 /* Copy Launcher Runtime */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				8E395C8393624ABC99873E4B /* PBXTargetDependency */,
+				F2E58D57A98740F9B4B093E3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				7D9A68F82FB3179F001A1BCF /* GatherTab */,
@@ -240,6 +276,27 @@
 			productReference = 136320E4D79A482799D3A83A /* GatherTabWindowHelper.app */;
 			productType = "com.apple.product-type.application";
 		};
+		8823D9B1F84843F6AA7C3177 /* GatherTabLauncherRuntime */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E8269D07E15C433C93DEFF17 /* Build configuration list for PBXNativeTarget "GatherTabLauncherRuntime" */;
+			buildPhases = (
+				E7CC40A53E6144E69C15C183 /* Sources */,
+				F78F3324C9CB4980BD1239A3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				97BB379DC1FA41D79C14BAE8 /* GatherTabLauncherRuntime */,
+			);
+			name = GatherTabLauncherRuntime;
+			packageProductDependencies = (
+			);
+			productName = GatherTabLauncherRuntime;
+			productReference = 9A4C3C4692C64C21A39753ED /* GatherTabLauncherRuntime */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -264,6 +321,9 @@
 					CFB2DC88E77442B5A211792D = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
+					8823D9B1F84843F6AA7C3177 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 				};
 			};
 			buildConfigurationList = 7D9A68F12FB3179F001A1BCF /* Build configuration list for PBXProject "GatherTab" */;
@@ -282,6 +342,7 @@
 			targets = (
 				7D9A68F52FB3179F001A1BCF /* GatherTab */,
 				CFB2DC88E77442B5A211792D /* GatherTabWindowHelper */,
+				8823D9B1F84843F6AA7C3177 /* GatherTabLauncherRuntime */,
 				7D9A69042FB317A1001A1BCF /* GatherTabTests */,
 				7D9A690E2FB317A1001A1BCF /* GatherTabUITests */,
 			);
@@ -348,6 +409,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E7CC40A53E6144E69C15C183 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -365,6 +433,11 @@
 			isa = PBXTargetDependency;
 			target = CFB2DC88E77442B5A211792D /* GatherTabWindowHelper */;
 			targetProxy = CB392B7E096C47818E35D691 /* PBXContainerItemProxy */;
+		};
+		F2E58D57A98740F9B4B093E3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8823D9B1F84843F6AA7C3177 /* GatherTabLauncherRuntime */;
+			targetProxy = F51087D7F6E64AA2B73CD9C4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -424,6 +497,52 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
+		};
+		5031889770B049B08055BC60 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5C63F2376C6F452DB12D3E9E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
 		};
 		7D9A69172FB317A1001A1BCF /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -727,6 +846,15 @@
 			buildConfigurations = (
 				1289B475C35C44A3B3C8A6DA /* Debug */,
 				07D9AF9789CF423EBDE67FEE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E8269D07E15C433C93DEFF17 /* Build configuration list for PBXNativeTarget "GatherTabLauncherRuntime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5031889770B049B08055BC60 /* Debug */,
+				5C63F2376C6F452DB12D3E9E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

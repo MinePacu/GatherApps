@@ -2,10 +2,17 @@ import AppKit
 import Foundation
 
 struct LauncherAppGeneratorService {
+    private static let launcherExecutableName = "GatherTabLauncher"
+
     private let iconService = GroupIconService()
+    private let launcherRuntimeExecutableURL: URL?
+
+    init(launcherRuntimeExecutableURL: URL? = LauncherRuntimeLocator.defaultRuntimeExecutableURL()) {
+        self.launcherRuntimeExecutableURL = launcherRuntimeExecutableURL
+    }
 
     func generateLauncher(for group: AppGroup, destinationDirectory: URL? = nil) throws -> LauncherGenerationResult {
-        let baseDirectory = try destinationDirectory ?? AppSupportPaths.launchersDirectory
+        let baseDirectory = try destinationDirectory ?? defaultDestinationDirectory()
         try FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
 
         let displayName = launcherDisplayName(for: group)
@@ -22,7 +29,7 @@ struct LauncherAppGeneratorService {
         try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
 
-        let executableName = "GatherTabLauncher"
+        let executableName = Self.launcherExecutableName
         let iconFileBaseName = "GroupIcon"
         let bundleIdentifier = bundleIdentifier(for: group)
 
@@ -46,6 +53,10 @@ struct LauncherAppGeneratorService {
         return LauncherGenerationResult(appURL: appURL, bundleIdentifier: bundleIdentifier)
     }
 
+    func defaultDestinationDirectory() throws -> URL {
+        try AppSupportPaths.userLaunchersDirectory
+    }
+
     private func launcherDisplayName(for group: AppGroup) -> String {
         "GatherTab - \(sanitizedFileName(group.name))"
     }
@@ -66,15 +77,12 @@ struct LauncherAppGeneratorService {
         return sanitized.isEmpty ? "Untitled Group" : sanitized
     }
 
-    private func writeExecutable(to url: URL, groupID: UUID) throws {
-        let targetURL = GatherTabURLScheme.activationURL(for: groupID).absoluteString
-        let script = """
-        #!/bin/sh
-        /usr/bin/open "\(targetURL)"
-        exit 0
-        """
+    private func writeExecutable(to url: URL, groupID _: UUID) throws {
+        guard let launcherRuntimeExecutableURL else {
+            throw CocoaError(.fileNoSuchFile)
+        }
 
-        try script.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.copyItem(at: launcherRuntimeExecutableURL, to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
@@ -98,6 +106,7 @@ struct LauncherAppGeneratorService {
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
             "GatherTabGroupID": groupID.uuidString,
+            "GatherTabShowsGatherTabWindow": false,
             "LSMinimumSystemVersion": "14.0"
         ]
 
@@ -188,5 +197,13 @@ struct LauncherAppGeneratorService {
         }
 
         try pngData.write(to: url, options: .atomic)
+    }
+}
+
+private enum LauncherRuntimeLocator {
+    static func defaultRuntimeExecutableURL(bundle: Bundle = .main) -> URL? {
+        bundle.resourceURL?
+            .appendingPathComponent("LauncherRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
     }
 }

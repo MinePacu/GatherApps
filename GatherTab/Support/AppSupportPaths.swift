@@ -48,6 +48,20 @@ enum AppSupportPaths {
         }
     }
 
+    static var userLaunchersDirectory: URL {
+        get throws {
+            let baseURL = try FileManager.default.url(
+                for: .applicationDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            let directory = baseURL.appendingPathComponent("GatherTab Launchers", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        }
+    }
+
     private static func migrateLegacySandboxDataIfNeeded(to appSupportDirectory: URL) throws {
         let legacyDirectory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library", isDirectory: true)
