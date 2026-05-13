@@ -12,6 +12,10 @@ final class GatherTabTests: XCTestCase {
         XCTAssertEqual(GatherTabURLScheme.groupID(from: url), groupID)
     }
 
+    func testWindowHelperIdentifierUsesMainAppBundlePrefix() {
+        XCTAssertEqual(WindowHelperConfiguration.loginItemIdentifier, "com.minepacu.GatherTab.WindowHelper")
+    }
+
     func testRunningAppServiceReturnsOneAppPerBundleIdentifier() {
         let duplicateBundleID = "com.apple.quicklook.QuickLookUIService"
         let apps = [
@@ -59,7 +63,7 @@ final class GatherTabTests: XCTestCase {
         XCTAssertNotEqual(firstFileName, secondFileName)
     }
 
-    func testActivationRaisesWindowsWhenAccessibilityIsTrusted() {
+    func testActivationUsesWindowHelperBeforeFallbackActivation() {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -67,17 +71,89 @@ final class GatherTabTests: XCTestCase {
             activationResult: false
         )
         let appProvider = StubApplicationProvider(app: app)
-        let windowRaiser = StubWindowRaiser(isTrusted: true, raiseResult: true)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "Example", raisedWindowCount: 1))
         let service = AppActivationService(
             applicationProvider: appProvider,
-            windowRaiser: windowRaiser
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
         )
 
         let result = service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .success(appName: "Example"))
-        XCTAssertEqual(windowRaiser.raisedProcessIdentifiers, [1234])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
+        XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App"])
         XCTAssertTrue(app.activationOptions.isEmpty)
+    }
+
+    func testActivationReportsAccessibilityPermissionMissingFromHelper() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: true
+        )
+        let appProvider = StubApplicationProvider(app: app)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .accessibilityPermissionMissing)
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
+        XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
+        XCTAssertTrue(app.activationOptions.isEmpty)
+    }
+
+    func testActivationReportsHelperUnavailableWhenLoginItemNeedsApproval() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: true
+        )
+        let appProvider = StubApplicationProvider(app: app)
+        let registrationService = StubWindowHelperRegistrationService(
+            result: .unavailable(reason: "Login item requires user approval.")
+        )
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "Example", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
+        XCTAssertEqual(result, .helperUnavailable(reason: "Login item requires user approval."))
+        XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
+        XCTAssertTrue(app.activationOptions.isEmpty)
+    }
+
+    func testActivationFallsBackToApplicationActivationWhenHelperIsUnavailable() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: true
+        )
+        let appProvider = StubApplicationProvider(app: app)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .helperUnavailable(reason: "missing helper"))
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
+        XCTAssertEqual(result, .success(appName: "Example"))
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
     func testLauncherGeneratorCreatesAppBundle() throws {
@@ -143,18 +219,30 @@ private struct StubApplicationProvider: ApplicationProviding {
     }
 }
 
-private final class StubWindowRaiser: WindowRaising {
-    let isTrusted: Bool
-    let raiseResult: Bool
-    private(set) var raisedProcessIdentifiers: [pid_t] = []
+private final class StubWindowHelperRegistrationService: WindowHelperRegistrationProviding {
+    let result: WindowHelperRegistrationResult
+    private(set) var ensureRegisteredCallCount = 0
 
-    init(isTrusted: Bool, raiseResult: Bool) {
-        self.isTrusted = isTrusted
-        self.raiseResult = raiseResult
+    init(result: WindowHelperRegistrationResult) {
+        self.result = result
     }
 
-    func raiseWindows(for processIdentifier: pid_t) -> Bool {
-        raisedProcessIdentifiers.append(processIdentifier)
-        return raiseResult
+    func ensureRegistered() -> WindowHelperRegistrationResult {
+        ensureRegisteredCallCount += 1
+        return result
+    }
+}
+
+private final class StubWindowHelperClient: WindowHelperClient {
+    let result: WindowHelperActivationResult
+    private(set) var requestedBundleIdentifiers: [String] = []
+
+    init(result: WindowHelperActivationResult) {
+        self.result = result
+    }
+
+    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+        requestedBundleIdentifiers.append(bundleIdentifier)
+        return result
     }
 }

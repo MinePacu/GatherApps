@@ -13,6 +13,7 @@ enum AppSupportPaths {
             )
             let directory = baseURL.appendingPathComponent(appDirectoryName, isDirectory: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try migrateLegacySandboxDataIfNeeded(to: directory)
             return directory
         }
     }
@@ -20,6 +21,12 @@ enum AppSupportPaths {
     static var groupsFileURL: URL {
         get throws {
             try appSupportDirectory.appendingPathComponent("groups.json")
+        }
+    }
+
+    static var windowHelperDiagnosticsFileURL: URL {
+        get throws {
+            try appSupportDirectory.appendingPathComponent("window-helper-diagnostics.txt")
         }
     }
 
@@ -39,5 +46,33 @@ enum AppSupportPaths {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             return directory
         }
+    }
+
+    private static func migrateLegacySandboxDataIfNeeded(to appSupportDirectory: URL) throws {
+        let legacyDirectory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Containers", isDirectory: true)
+            .appendingPathComponent("com.minepacu.GatherTab", isDirectory: true)
+            .appendingPathComponent("Data", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent(appDirectoryName, isDirectory: true)
+
+        try migrateItemIfNeeded(named: "groups.json", from: legacyDirectory, to: appSupportDirectory)
+        try migrateItemIfNeeded(named: "Icons", from: legacyDirectory, to: appSupportDirectory)
+    }
+
+    private static func migrateItemIfNeeded(named itemName: String, from sourceDirectory: URL, to destinationDirectory: URL) throws {
+        let sourceURL = sourceDirectory.appendingPathComponent(itemName)
+        let destinationURL = destinationDirectory.appendingPathComponent(itemName)
+
+        guard
+            FileManager.default.fileExists(atPath: sourceURL.path),
+            !FileManager.default.fileExists(atPath: destinationURL.path)
+        else {
+            return
+        }
+
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
     }
 }

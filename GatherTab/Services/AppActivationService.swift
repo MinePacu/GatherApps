@@ -1,6 +1,6 @@
 import AppKit
-import ApplicationServices
 import Foundation
+import ServiceManagement
 
 protocol ActivatableApplication {
     var bundleIdentifier: String? { get }
@@ -14,22 +14,46 @@ protocol ApplicationProviding {
     func runningApplication(bundleIdentifier: String) -> ActivatableApplication?
 }
 
-protocol WindowRaising {
-    var isTrusted: Bool { get }
+enum WindowHelperActivationResult: Equatable {
+    case raised(appName: String, raisedWindowCount: Int)
+    case appNotRunning(bundleIdentifier: String)
+    case accessibilityPermissionMissing
+    case noWindowsFound(appName: String)
+    case raiseFailed(appName: String)
+    case helperUnavailable(reason: String)
+}
 
-    func raiseWindows(for processIdentifier: pid_t) -> Bool
+enum WindowHelperRegistrationResult: Equatable {
+    case available
+    case unavailable(reason: String)
+}
+
+protocol WindowHelperRegistrationProviding {
+    func ensureRegistered() -> WindowHelperRegistrationResult
+}
+
+protocol WindowHelperClient {
+    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult
+}
+
+enum WindowHelperConfiguration {
+    static let loginItemIdentifier = "com.minepacu.GatherTab.WindowHelper"
+    static let notificationNamespace = loginItemIdentifier
 }
 
 struct AppActivationService {
     private let applicationProvider: ApplicationProviding
-    private let windowRaiser: WindowRaising
+    private let helperRegistrationService: WindowHelperRegistrationProviding
+    private let helperClient: WindowHelperClient
 
     init(
         applicationProvider: ApplicationProviding = NSWorkspaceApplicationProvider(),
-        windowRaiser: WindowRaising = AccessibilityWindowRaiser()
+        helperRegistrationService: WindowHelperRegistrationProviding = LoginItemWindowHelperRegistrationService(),
+        helperClient: WindowHelperClient = DistributedNotificationWindowHelperClient()
     ) {
         self.applicationProvider = applicationProvider
-        self.windowRaiser = windowRaiser
+        self.helperRegistrationService = helperRegistrationService
+        self.helperClient = helperClient
     }
 
     func activate(bundleIdentifier: String) -> ActivationResult {
@@ -38,12 +62,28 @@ struct AppActivationService {
         }
 
         let appName = app.localizedName ?? bundleIdentifier
-        if windowRaiser.isTrusted, windowRaiser.raiseWindows(for: app.processIdentifier) {
-            return .success(appName: appName)
+        switch helperRegistrationService.ensureRegistered() {
+        case .available:
+            break
+        case .unavailable(let reason):
+            return .helperUnavailable(reason: reason)
         }
 
-        let activated = app.activate(options: [.activateAllWindows])
-        return activated ? .success(appName: appName) : .activationFailed(appName: appName)
+        switch helperClient.raiseWindows(bundleIdentifier: bundleIdentifier) {
+        case .raised(let helperAppName, _):
+            return .success(appName: helperAppName)
+        case .appNotRunning:
+            return .appNotRunning(bundleIdentifier: bundleIdentifier)
+        case .accessibilityPermissionMissing:
+            return .accessibilityPermissionMissing(appName: appName)
+        case .noWindowsFound(let helperAppName):
+            return .noWindowsFound(appName: helperAppName)
+        case .raiseFailed(let helperAppName):
+            return .windowRaiseFailed(appName: helperAppName)
+        case .helperUnavailable:
+            let activated = app.activate(options: [.activateAllWindows])
+            return activated ? .success(appName: appName) : .helperUnavailable(reason: "Window helper is unavailable and fallback activation failed.")
+        }
     }
 }
 
@@ -57,37 +97,229 @@ private struct NSWorkspaceApplicationProvider: ApplicationProviding {
     }
 }
 
-private struct AccessibilityWindowRaiser: WindowRaising {
-    var isTrusted: Bool {
-        let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
+private struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProviding {
+    private let embeddedLauncher = EmbeddedWindowHelperLauncher()
 
-        return AXIsProcessTrustedWithOptions(options)
+    func ensureRegistered() -> WindowHelperRegistrationResult {
+        let service = SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier)
+
+        switch service.status {
+        case .enabled:
+            return .available
+        case .notRegistered:
+            do {
+                try service.register()
+                if service.status == .enabled {
+                    return .available
+                }
+                return embeddedLauncher.launchIfNeeded(
+                    fallbackReason: "Login item registration is pending user approval."
+                )
+            } catch {
+                return embeddedLauncher.launchIfNeeded(fallbackReason: error.localizedDescription)
+            }
+        case .requiresApproval:
+            return embeddedLauncher.launchIfNeeded(
+                fallbackReason: "Login item requires user approval in System Settings."
+            )
+        case .notFound:
+            return embeddedLauncher.launchIfNeeded(fallbackReason: WindowHelperBundleDiagnostics.notFoundReason())
+        @unknown default:
+            return embeddedLauncher.launchIfNeeded(
+                fallbackReason: "GatherTabWindowHelper login item has an unknown registration status."
+            )
+        }
+    }
+}
+
+private struct EmbeddedWindowHelperLauncher {
+    func launchIfNeeded(fallbackReason: String) -> WindowHelperRegistrationResult {
+        if isHelperRunning {
+            return .available
+        }
+
+        let helperURL = WindowHelperBundleDiagnostics.helperURL
+        guard FileManager.default.fileExists(atPath: helperURL.path) else {
+            return .unavailable(reason: "\(fallbackReason) Embedded helper app is missing at \(helperURL.path).")
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.addsToRecentItems = false
+        var launchError: Error?
+        var didComplete = false
+
+        NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) { _, error in
+            launchError = error
+            didComplete = true
+        }
+
+        let launchDeadline = Date().addingTimeInterval(2)
+        while !didComplete, Date() < launchDeadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+
+        if let launchError {
+            return .unavailable(reason: "\(fallbackReason) Direct helper launch failed: \(launchError.localizedDescription)")
+        }
+
+        let runningDeadline = Date().addingTimeInterval(2)
+        while !isHelperRunning, Date() < runningDeadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+
+        return isHelperRunning
+            ? .available
+            : .unavailable(reason: "\(fallbackReason) Direct helper launch did not start GatherTabWindowHelper.")
     }
 
-    func raiseWindows(for processIdentifier: pid_t) -> Bool {
-        let appElement = AXUIElementCreateApplication(processIdentifier)
-        var windowsValue: CFTypeRef?
-        let copyResult = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXWindowsAttribute as CFString,
-            &windowsValue
+    private var isHelperRunning: Bool {
+        NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier
+        }
+    }
+}
+
+private enum WindowHelperBundleDiagnostics {
+    static var helperURL: URL {
+        Bundle.main.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("LoginItems", isDirectory: true)
+            .appendingPathComponent("GatherTabWindowHelper.app", isDirectory: true)
+    }
+
+    static func notFoundReason() -> String {
+        let helperURL = Self.helperURL
+        let infoPlistURL = helperURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Info.plist")
+        let helperBundle = Bundle(url: helperURL)
+        let helperExists = FileManager.default.fileExists(atPath: helperURL.path)
+        let infoPlistExists = FileManager.default.fileExists(atPath: infoPlistURL.path)
+        let embeddedIdentifier = helperBundle?.bundleIdentifier ?? "unreadable"
+
+        let diagnostics = [
+            "GatherTabWindowHelper login item was not found in the app bundle.",
+            "Expected identifier: \(WindowHelperConfiguration.loginItemIdentifier).",
+            "Main bundle: \(Bundle.main.bundleURL.path).",
+            "Expected helper path: \(helperURL.path).",
+            "Helper exists: \(helperExists).",
+            "Helper Info.plist exists: \(infoPlistExists).",
+            "Embedded helper identifier: \(embeddedIdentifier)."
+        ].joined(separator: "\n")
+
+        let diagnosticsFilePath = writeDiagnostics(diagnostics)
+
+        return [
+            "Login item not found.",
+            "helperExists=\(helperExists)",
+            "embeddedID=\(embeddedIdentifier)",
+            "diagnostics=\(diagnosticsFilePath ?? "write-failed")"
+        ].joined(separator: " ")
+    }
+
+    private static func writeDiagnostics(_ diagnostics: String) -> String? {
+        do {
+            let fileURL = try AppSupportPaths.windowHelperDiagnosticsFileURL
+            try diagnostics.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL.path
+        } catch {
+            return nil
+        }
+    }
+}
+
+private enum WindowHelperNotification {
+    static let request = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.request")
+    static let response = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.response")
+    static let bundleIdentifierKey = "bundleIdentifier"
+    static let requestIDKey = "requestID"
+    static let appNameKey = "appName"
+    static let statusKey = "status"
+    static let raisedWindowCountKey = "raisedWindowCount"
+    static let messageKey = "message"
+}
+
+private struct DistributedNotificationWindowHelperClient: WindowHelperClient {
+    private let timeout: TimeInterval
+
+    init(timeout: TimeInterval = 2) {
+        self.timeout = timeout
+    }
+
+    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+        let center = DistributedNotificationCenter.default()
+        let requestID = UUID().uuidString
+        var response: WindowHelperProcessResult?
+
+        let observer = center.addObserver(
+            forName: WindowHelperNotification.response,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard
+                let userInfo = notification.userInfo,
+                userInfo[WindowHelperNotification.requestIDKey] as? String == requestID
+            else {
+                return
+            }
+
+            response = WindowHelperProcessResult(userInfo: userInfo)
+        }
+
+        defer {
+            center.removeObserver(observer)
+        }
+
+        center.postNotificationName(
+            WindowHelperNotification.request,
+            object: nil,
+            userInfo: [
+                WindowHelperNotification.requestIDKey: requestID,
+                WindowHelperNotification.bundleIdentifierKey: bundleIdentifier
+            ],
+            deliverImmediately: true
         )
 
-        guard
-            copyResult == .success,
-            let windows = windowsValue as? [AXUIElement],
-            !windows.isEmpty
-        else {
-            return false
+        let deadline = Date().addingTimeInterval(timeout)
+        while response == nil, Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
 
-        let raisedWindowCount = windows.reduce(0) { count, window in
-            let result = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-            return result == .success ? count + 1 : count
-        }
+        return response?.activationResult ?? .helperUnavailable(reason: "GatherTabWindowHelper did not respond.")
+    }
+}
 
-        return raisedWindowCount > 0
+private struct WindowHelperProcessResult {
+    let bundleIdentifier: String
+    let appName: String?
+    let status: String
+    let raisedWindowCount: Int?
+    let message: String?
+
+    init(userInfo: [AnyHashable: Any]) {
+        bundleIdentifier = userInfo[WindowHelperNotification.bundleIdentifierKey] as? String ?? ""
+        appName = userInfo[WindowHelperNotification.appNameKey] as? String
+        status = userInfo[WindowHelperNotification.statusKey] as? String ?? "helperUnavailable"
+        raisedWindowCount = userInfo[WindowHelperNotification.raisedWindowCountKey] as? Int
+        message = userInfo[WindowHelperNotification.messageKey] as? String
+    }
+
+    var activationResult: WindowHelperActivationResult {
+        switch status {
+        case "raised":
+            return .raised(appName: appName ?? bundleIdentifier, raisedWindowCount: raisedWindowCount ?? 0)
+        case "appNotRunning":
+            return .appNotRunning(bundleIdentifier: bundleIdentifier)
+        case "accessibilityPermissionMissing":
+            return .accessibilityPermissionMissing
+        case "noWindowsFound":
+            return .noWindowsFound(appName: appName ?? bundleIdentifier)
+        case "raiseFailed":
+            return .raiseFailed(appName: appName ?? bundleIdentifier)
+        default:
+            return .helperUnavailable(reason: message ?? "Unrecognized helper status: \(status)")
+        }
     }
 }
