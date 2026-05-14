@@ -82,7 +82,9 @@ struct AppActivationService {
             return .windowRaiseFailed(appName: helperAppName)
         case .helperUnavailable:
             let activated = app.activate(options: [.activateAllWindows])
-            return activated ? .success(appName: appName) : .helperUnavailable(reason: "Window helper is unavailable and fallback activation failed.")
+            return activated
+                ? .success(appName: appName)
+                : .helperUnavailable(reason: L10n.string("activation.reason.windowHelperFallbackFailed"))
         }
     }
 }
@@ -113,20 +115,20 @@ private struct LoginItemWindowHelperRegistrationService: WindowHelperRegistratio
                     return .available
                 }
                 return embeddedLauncher.launchIfNeeded(
-                    fallbackReason: "Login item registration is pending user approval."
+                    fallbackReason: L10n.string("activation.reason.loginItemApprovalPending")
                 )
             } catch {
                 return embeddedLauncher.launchIfNeeded(fallbackReason: error.localizedDescription)
             }
         case .requiresApproval:
             return embeddedLauncher.launchIfNeeded(
-                fallbackReason: "Login item requires user approval in System Settings."
+                fallbackReason: L10n.string("activation.reason.loginItemRequiresApproval")
             )
         case .notFound:
             return embeddedLauncher.launchIfNeeded(fallbackReason: WindowHelperBundleDiagnostics.notFoundReason())
         @unknown default:
             return embeddedLauncher.launchIfNeeded(
-                fallbackReason: "GatherTabWindowHelper login item has an unknown registration status."
+                fallbackReason: L10n.string("activation.reason.loginItemUnknownStatus")
             )
         }
     }
@@ -140,7 +142,7 @@ private struct EmbeddedWindowHelperLauncher {
 
         let helperURL = WindowHelperBundleDiagnostics.helperURL
         guard FileManager.default.fileExists(atPath: helperURL.path) else {
-            return .unavailable(reason: "\(fallbackReason) Embedded helper app is missing at \(helperURL.path).")
+            return .unavailable(reason: L10n.format("activation.reason.embeddedHelperMissing", fallbackReason, helperURL.path))
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
@@ -160,7 +162,7 @@ private struct EmbeddedWindowHelperLauncher {
         }
 
         if let launchError {
-            return .unavailable(reason: "\(fallbackReason) Direct helper launch failed: \(launchError.localizedDescription)")
+            return .unavailable(reason: L10n.format("activation.reason.helperLaunchFailed", fallbackReason, launchError.localizedDescription))
         }
 
         let runningDeadline = Date().addingTimeInterval(2)
@@ -170,7 +172,7 @@ private struct EmbeddedWindowHelperLauncher {
 
         return isHelperRunning
             ? .available
-            : .unavailable(reason: "\(fallbackReason) Direct helper launch did not start GatherTabWindowHelper.")
+            : .unavailable(reason: L10n.format("activation.reason.helperLaunchDidNotStart", fallbackReason))
     }
 
     private var isHelperRunning: Bool {
@@ -212,7 +214,7 @@ private enum WindowHelperBundleDiagnostics {
         let diagnosticsFilePath = writeDiagnostics(diagnostics)
 
         return [
-            "Login item not found.",
+            L10n.string("activation.reason.loginItemNotFound"),
             "helperExists=\(helperExists)",
             "embeddedID=\(embeddedIdentifier)",
             "diagnostics=\(diagnosticsFilePath ?? "write-failed")"
@@ -287,7 +289,7 @@ private struct DistributedNotificationWindowHelperClient: WindowHelperClient {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
 
-        return response?.activationResult ?? .helperUnavailable(reason: "GatherTabWindowHelper did not respond.")
+        return response?.activationResult ?? .helperUnavailable(reason: L10n.string("activation.reason.helperDidNotRespond"))
     }
 }
 
@@ -319,7 +321,9 @@ private struct WindowHelperProcessResult {
         case "raiseFailed":
             return .raiseFailed(appName: appName ?? bundleIdentifier)
         default:
-            return .helperUnavailable(reason: message ?? "Unrecognized helper status: \(status)")
+            return .helperUnavailable(
+                reason: message ?? L10n.format("activation.reason.unrecognizedHelperStatus", status)
+            )
         }
     }
 }

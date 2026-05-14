@@ -25,7 +25,7 @@ struct GroupDetailView: View {
             }
             .onAppear(perform: refreshRunningApps)
         } else {
-            ContentUnavailableView("그룹을 찾을 수 없습니다", systemImage: "exclamationmark.triangle")
+            ContentUnavailableView("groupDetail.groupNotFound", systemImage: "exclamationmark.triangle")
         }
     }
 
@@ -38,7 +38,7 @@ struct GroupDetailView: View {
                     .font(.title)
                     .fontWeight(.semibold)
                     .lineLimit(1)
-                Text("\(group.apps.count)개 앱")
+                Text(L10n.format("common.appCount", group.apps.count))
                     .foregroundStyle(.secondary)
             }
 
@@ -47,7 +47,7 @@ struct GroupDetailView: View {
             Button {
                 store.activate(groupID: group.id)
             } label: {
-                Label("그룹 활성화", systemImage: "play.fill")
+                Label("groupDetail.activateGroup", systemImage: "play.fill")
             }
             .controlSize(.large)
             .disabled(group.apps.isEmpty)
@@ -55,7 +55,7 @@ struct GroupDetailView: View {
             Button {
                 store.generateLauncher(for: group.id)
             } label: {
-                Label("런처 생성", systemImage: "app.badge")
+                Label("groupDetail.generateLauncher", systemImage: "app.badge")
             }
             .controlSize(.large)
         }
@@ -64,10 +64,10 @@ struct GroupDetailView: View {
 
     private func groupedAppsList(for group: AppGroup) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("그룹 앱")
+            sectionTitle("groupDetail.groupApps")
 
             if group.apps.isEmpty {
-                ContentUnavailableView("아직 앱이 없습니다", systemImage: "square.grid.2x2")
+                ContentUnavailableView("groupDetail.noApps", systemImage: "square.grid.2x2")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
@@ -94,7 +94,7 @@ struct GroupDetailView: View {
                                 Image(systemName: "minus.circle")
                             }
                             .buttonStyle(.borderless)
-                            .help("그룹에서 제거")
+                            .help(Text("groupDetail.removeFromGroup"))
                         }
                         .padding(.vertical, 4)
                     }
@@ -112,14 +112,14 @@ struct GroupDetailView: View {
     private func runningAppsList(for group: AppGroup) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                sectionTitle("실행 중인 앱")
+                sectionTitle("groupDetail.runningApps")
                 Spacer()
                 Button {
                     refreshRunningApps()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .help("목록 새로고침")
+                .help(Text("groupDetail.refreshList"))
                 .padding(.trailing, 12)
             }
 
@@ -144,7 +144,7 @@ struct GroupDetailView: View {
                         Image(systemName: "plus.circle")
                     }
                     .buttonStyle(.borderless)
-                    .help("그룹에 추가")
+                    .help(Text("groupDetail.addToGroup"))
                 }
                 .padding(.vertical, 4)
             }
@@ -167,7 +167,7 @@ struct GroupDetailView: View {
         Group {
             if let result = store.lastLauncherGenerationResult {
                 HStack(spacing: 8) {
-                    Text("런처 생성됨: \(result.appURL.path)")
+                    Text(L10n.format("groupDetail.launcherCreated", result.appURL.path))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -177,7 +177,7 @@ struct GroupDetailView: View {
                     Button {
                         NSWorkspace.shared.activateFileViewerSelecting([result.appURL])
                     } label: {
-                        Label("Finder에서 보기", systemImage: "magnifyingglass")
+                        Label("groupDetail.revealInFinder", systemImage: "magnifyingglass")
                     }
                     .controlSize(.small)
                 }
@@ -186,7 +186,7 @@ struct GroupDetailView: View {
         .padding([.horizontal, .bottom], 12)
     }
 
-    private func sectionTitle(_ title: String) -> some View {
+    private func sectionTitle(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.headline)
             .padding([.top, .horizontal], 12)

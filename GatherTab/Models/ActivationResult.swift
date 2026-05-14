@@ -12,19 +12,19 @@ enum ActivationResult: Equatable {
     var message: String {
         switch self {
         case .success(let appName):
-            "\(appName)을 활성화했습니다."
+            L10n.format("activation.success", appName)
         case .appNotRunning:
-            "실행 중인 앱을 찾을 수 없습니다."
+            L10n.string("activation.appNotRunning")
         case .accessibilityPermissionMissing(let appName):
-            "\(appName) 창을 가져오려면 GatherTabWindowHelper의 손쉬운 사용 권한이 필요합니다."
+            L10n.format("activation.accessibilityPermissionMissing", appName)
         case .helperUnavailable(let reason):
-            "창 제어 도우미를 실행하지 못했습니다. \(reason)"
+            L10n.format("activation.helperUnavailable", reason)
         case .noWindowsFound(let appName):
-            "\(appName)의 표시 가능한 창을 찾지 못했습니다."
+            L10n.format("activation.noWindowsFound", appName)
         case .windowRaiseFailed(let appName):
-            "\(appName) 창을 앞으로 가져오지 못했습니다."
+            L10n.format("activation.windowRaiseFailed", appName)
         case .activationFailed(let appName):
-            "\(appName)을 활성화하지 못했습니다."
+            L10n.format("activation.activationFailed", appName)
         }
     }
 

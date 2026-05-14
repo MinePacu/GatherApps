@@ -16,8 +16,8 @@ struct SidebarView: View {
                 isPresented: isShowingDeletionConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("삭제", role: .destructive, action: confirmDeletion)
-                Button("취소", role: .cancel) {
+                Button(L10n.string("common.delete"), role: .destructive, action: confirmDeletion)
+                Button(L10n.string("common.cancel"), role: .cancel) {
                     pendingDeletionRequest = nil
                 }
             } message: {
@@ -37,14 +37,8 @@ struct SidebarView: View {
         .toolbar {
             ToolbarItem {
                 Button(action: onCreateGroup) {
-                    Label("그룹 생성", systemImage: "plus")
+                    Label("sidebar.createGroup", systemImage: "plus")
                 }
-            }
-            ToolbarItem {
-                Button(role: .destructive, action: deleteSelectedGroup) {
-                    Label("그룹 삭제", systemImage: "trash")
-                }
-                .disabled(selection == nil)
             }
         }
     }
@@ -59,7 +53,7 @@ struct SidebarView: View {
                 Text(group.name)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text("\(group.apps.count)개 앱")
+                Text(L10n.format("common.appCount", group.apps.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -76,11 +70,6 @@ struct SidebarView: View {
             store.groups.indices.contains(index) ? store.groups[index].id : nil
         }
         requestDeletion(for: groupIDs)
-    }
-
-    private func deleteSelectedGroup() {
-        guard let selection else { return }
-        requestDeletion(for: [selection])
     }
 
     private func requestDeletion(for groupIDs: [AppGroup.ID]) {
@@ -115,14 +104,14 @@ struct SidebarView: View {
 
     private var deletionDialogTitle: String {
         guard let pendingDeletionRequest else {
-            return "그룹 삭제"
+            return L10n.string("sidebar.deleteGroup")
         }
 
         if pendingDeletionRequest.groupNames.count == 1, let groupName = pendingDeletionRequest.groupNames.first {
-            return "\"\(groupName)\" 삭제"
+            return L10n.format("sidebar.deleteConfirmation.singleTitle", groupName)
         }
 
-        return "\(pendingDeletionRequest.groupNames.count)개 그룹 삭제"
+        return L10n.format("sidebar.deleteConfirmation.multipleTitle", pendingDeletionRequest.groupNames.count)
     }
 
     private var deletionDialogMessage: String {
@@ -131,10 +120,10 @@ struct SidebarView: View {
         }
 
         if pendingDeletionRequest.groupNames.count == 1 {
-            return "이 그룹과 생성된 GatherTab 런처를 삭제합니다. 그룹에 포함된 앱은 삭제되지 않습니다."
+            return L10n.string("sidebar.deleteConfirmation.singleMessage")
         }
 
-        return "선택한 그룹과 생성된 GatherTab 런처를 삭제합니다. 그룹에 포함된 앱은 삭제되지 않습니다."
+        return L10n.string("sidebar.deleteConfirmation.multipleMessage")
     }
 }
 

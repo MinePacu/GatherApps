@@ -15,7 +15,7 @@ struct SwitcherGroupRowView: View {
                     .font(.headline)
                     .lineLimit(1)
 
-                Text("\(group.apps.count)개 앱 · 실행 중 \(runningAppCount)개")
+                Text(L10n.format("switcher.groupStatus", group.apps.count, runningAppCount))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

@@ -1,6 +1,6 @@
 # GatherTab
 
-[English](README.en.md) | 한국어
+[English](README.en.md) | 한국어 | [日本語](README.ja.md)
 
 GatherTab은 여러 macOS 앱을 작업 단위로 묶고, 필요할 때 한 번에 앞으로 가져오는 SwiftUI 기반 macOS 앱입니다. 브라우저, 메신저, IDE처럼 함께 쓰는 앱들을 그룹으로 저장해 두면, 그룹 활성화만으로 해당 앱들의 창을 다시 띄울 수 있습니다.
 

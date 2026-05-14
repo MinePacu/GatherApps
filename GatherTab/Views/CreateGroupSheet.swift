@@ -8,20 +8,20 @@ struct CreateGroupSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("새 그룹")
+            Text("createGroup.title")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            TextField("그룹 이름", text: $groupName)
+            TextField("createGroup.namePlaceholder", text: $groupName)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(create)
 
             HStack {
                 Spacer()
-                Button("취소") {
+                Button("common.cancel") {
                     dismiss()
                 }
-                Button("생성") {
+                Button("common.create") {
                     create()
                 }
                 .keyboardShortcut(.defaultAction)

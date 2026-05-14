@@ -10,7 +10,7 @@ struct FloatingSwitcherView: View {
             Divider()
 
             if viewModel.groups.isEmpty {
-                ContentUnavailableView("그룹이 없습니다", systemImage: "square.grid.2x2")
+                ContentUnavailableView("switcher.noGroups", systemImage: "square.grid.2x2")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
@@ -46,7 +46,7 @@ struct FloatingSwitcherView: View {
 
     private var header: some View {
         HStack {
-            Text("그룹 스위처")
+            Text("switcher.title")
                 .font(.headline)
 
             Spacer()
@@ -57,7 +57,7 @@ struct FloatingSwitcherView: View {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.borderless)
-            .help("닫기")
+            .help(Text("common.close"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

@@ -18,7 +18,7 @@ struct ContentView: View {
             if let selectedGroupID {
                 GroupDetailView(store: store, groupID: selectedGroupID)
             } else {
-                ContentUnavailableView("그룹을 선택하세요", systemImage: "square.grid.2x2")
+                ContentUnavailableView("content.noGroupSelected", systemImage: "square.grid.2x2")
             }
         }
         .frame(
@@ -29,11 +29,18 @@ struct ContentView: View {
         )
         .toolbar {
             ToolbarItem {
+                Button(role: .destructive, action: deleteSelectedGroup) {
+                    Label("sidebar.deleteGroup", systemImage: "trash")
+                }
+                .disabled(selectedGroupID == nil)
+            }
+
+            ToolbarItem {
                 Button {
                     // TODO: Wire the future global shortcut service to this same entry point.
                     switcherWindowController.showSwitcher(store: store)
                 } label: {
-                    Label("스위처 열기", systemImage: "square.grid.2x2")
+                    Label("content.openSwitcher", systemImage: "square.grid.2x2")
                 }
             }
         }
@@ -56,16 +63,27 @@ struct ContentView: View {
             }
         }
         .alert(
-            "오류",
+            "common.error",
             isPresented: Binding(
                 get: { store.lastErrorMessage != nil },
                 set: { if !$0 { store.lastErrorMessage = nil } }
             )
         ) {
-            Button("확인", role: .cancel) {}
+            Button("common.ok", role: .cancel) {}
         } message: {
             Text(store.lastErrorMessage ?? "")
         }
+    }
+
+    private func deleteSelectedGroup() {
+        guard let deletedGroupID = selectedGroupID else { return }
+
+        store.deleteGroup(id: deletedGroupID)
+        selectedGroupID = ContentSelection.selection(
+            afterDeleting: deletedGroupID,
+            currentSelection: selectedGroupID,
+            remainingGroupIDs: store.groups.map(\.id)
+        )
     }
 }
 
@@ -74,4 +92,18 @@ enum AppLayout {
     static let defaultWindowWidth: CGFloat = 1160
     static let minimumWindowHeight: CGFloat = 540
     static let defaultWindowHeight: CGFloat = 640
+}
+
+enum ContentSelection {
+    static func selection(
+        afterDeleting deletedGroupID: AppGroup.ID,
+        currentSelection: AppGroup.ID?,
+        remainingGroupIDs: [AppGroup.ID]
+    ) -> AppGroup.ID? {
+        guard currentSelection == deletedGroupID else {
+            return currentSelection
+        }
+
+        return remainingGroupIDs.first
+    }
 }

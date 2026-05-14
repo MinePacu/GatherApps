@@ -4,6 +4,71 @@ import XCTest
 
 @MainActor
 final class GatherTabTests: XCTestCase {
+    func testSidebarDoesNotDefineDedicatedDeleteToolbarButton() throws {
+        let projectRootURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sidebarURL = projectRootURL
+            .appendingPathComponent("GatherTab", isDirectory: true)
+            .appendingPathComponent("Views", isDirectory: true)
+            .appendingPathComponent("SidebarView.swift")
+        let sidebarSource = try String(contentsOf: sidebarURL, encoding: .utf8)
+
+        XCTAssertFalse(sidebarSource.contains("deleteSelectedGroup"))
+        XCTAssertFalse(sidebarSource.contains("Label(\"sidebar.deleteGroup\""))
+    }
+
+    func testDeletingSelectedGroupSelectsFirstRemainingGroup() {
+        let deletedID = UUID()
+        let nextID = UUID()
+        let otherID = UUID()
+
+        let nextSelection = ContentSelection.selection(
+            afterDeleting: deletedID,
+            currentSelection: deletedID,
+            remainingGroupIDs: [nextID, otherID]
+        )
+
+        XCTAssertEqual(nextSelection, nextID)
+    }
+
+    func testDeletingUnselectedGroupPreservesCurrentSelection() {
+        let deletedID = UUID()
+        let selectedID = UUID()
+        let otherID = UUID()
+
+        let nextSelection = ContentSelection.selection(
+            afterDeleting: deletedID,
+            currentSelection: selectedID,
+            remainingGroupIDs: [selectedID, otherID]
+        )
+
+        XCTAssertEqual(nextSelection, selectedID)
+    }
+
+    func testLocalizableStringsHaveMatchingKeysForSupportedLanguages() throws {
+        let projectRootURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appSourceURL = projectRootURL.appendingPathComponent("GatherTab", isDirectory: true)
+        let supportedLanguages = ["en", "ko", "ja"]
+
+        let keysByLanguage = try Dictionary(
+            uniqueKeysWithValues: supportedLanguages.map { language in
+                let stringsURL = appSourceURL
+                    .appendingPathComponent("\(language).lproj", isDirectory: true)
+                    .appendingPathComponent("Localizable.strings")
+                let keys = try Self.localizationKeys(at: stringsURL)
+                return (language, keys)
+            }
+        )
+
+        let englishKeys = try XCTUnwrap(keysByLanguage["en"])
+        for language in supportedLanguages where language != "en" {
+            XCTAssertEqual(keysByLanguage[language], englishKeys, "\(language) localization keys should match English")
+        }
+    }
+
     func testActivationURLRoundTripsGroupID() {
         let groupID = UUID()
         let url = GatherTabURLScheme.activationURL(for: groupID)
@@ -298,6 +363,13 @@ final class GatherTabTests: XCTestCase {
 
         XCTAssertEqual(generatedContents, runtimeContents)
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executableURL.path))
+    }
+
+    private static func localizationKeys(at url: URL) throws -> Set<String> {
+        let data = try Data(contentsOf: url)
+        let plist = try PropertyListSerialization.propertyList(from: data, format: nil)
+        let strings = try XCTUnwrap(plist as? [String: String])
+        return Set(strings.keys)
     }
 }
 

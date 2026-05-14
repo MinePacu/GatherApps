@@ -33,7 +33,7 @@ final class AppGroupStore: ObservableObject {
             groups.append(group)
             save()
         } catch {
-            lastErrorMessage = "그룹 아이콘을 생성하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.groupIconCreationFailed", error.localizedDescription)
         }
     }
 
@@ -101,7 +101,7 @@ final class AppGroupStore: ObservableObject {
         do {
             lastLauncherGenerationResult = try launcherGeneratorService.generateLauncher(for: group)
         } catch {
-            lastErrorMessage = "런처 앱을 생성하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.launcherGenerationFailed", error.localizedDescription)
         }
     }
 
@@ -122,7 +122,7 @@ final class AppGroupStore: ObservableObject {
             groups = try JSONDecoder().decode([AppGroup].self, from: data)
         } catch {
             groups = []
-            lastErrorMessage = "그룹 목록을 불러오지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.groupLoadFailed", error.localizedDescription)
         }
     }
 
@@ -138,7 +138,7 @@ final class AppGroupStore: ObservableObject {
             let data = try encoder.encode(groups)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            lastErrorMessage = "그룹 목록을 저장하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.groupSaveFailed", error.localizedDescription)
         }
     }
 
@@ -150,7 +150,7 @@ final class AppGroupStore: ObservableObject {
                 groups[index].iconFileName = try iconService.generateIcon(for: groups[index])
                 didChange = true
             } catch {
-                lastErrorMessage = "그룹 아이콘을 생성하지 못했습니다: \(error.localizedDescription)"
+                lastErrorMessage = L10n.format("errors.groupIconCreationFailed", error.localizedDescription)
             }
         }
 
@@ -169,7 +169,7 @@ final class AppGroupStore: ObservableObject {
                 deleteIcon(named: previousIconFileName)
             }
         } catch {
-            lastErrorMessage = "그룹 아이콘을 갱신하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.groupIconRefreshFailed", error.localizedDescription)
         }
     }
 
