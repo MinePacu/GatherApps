@@ -6,17 +6,19 @@ struct LauncherAppGeneratorService {
 
     private let iconService = GroupIconService()
     private let launcherRuntimeExecutableURL: URL?
+    private let customDefaultDestinationDirectory: URL?
 
-    init(launcherRuntimeExecutableURL: URL? = LauncherRuntimeLocator.defaultRuntimeExecutableURL()) {
+    init(
+        launcherRuntimeExecutableURL: URL? = LauncherRuntimeLocator.defaultRuntimeExecutableURL(),
+        defaultDestinationDirectory: URL? = nil
+    ) {
         self.launcherRuntimeExecutableURL = launcherRuntimeExecutableURL
+        self.customDefaultDestinationDirectory = defaultDestinationDirectory
     }
 
     func generateLauncher(for group: AppGroup, destinationDirectory: URL? = nil) throws -> LauncherGenerationResult {
-        let baseDirectory = try destinationDirectory ?? defaultDestinationDirectory()
-        try FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
-
-        let displayName = launcherDisplayName(for: group)
-        let appURL = baseDirectory.appendingPathComponent("\(displayName).app", isDirectory: true)
+        let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
+        try FileManager.default.createDirectory(at: appURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         if FileManager.default.fileExists(atPath: appURL.path) {
             try FileManager.default.removeItem(at: appURL)
@@ -32,6 +34,7 @@ struct LauncherAppGeneratorService {
         let executableName = Self.launcherExecutableName
         let iconFileBaseName = "GroupIcon"
         let bundleIdentifier = bundleIdentifier(for: group)
+        let displayName = launcherDisplayName(for: group)
 
         try writeExecutable(
             to: macOSURL.appendingPathComponent(executableName),
@@ -53,8 +56,20 @@ struct LauncherAppGeneratorService {
         return LauncherGenerationResult(appURL: appURL, bundleIdentifier: bundleIdentifier)
     }
 
+    func launcherURL(for group: AppGroup, destinationDirectory: URL? = nil) throws -> URL {
+        let baseDirectory = try destinationDirectory ?? defaultDestinationDirectory()
+        let displayName = launcherDisplayName(for: group)
+        return baseDirectory.appendingPathComponent("\(displayName).app", isDirectory: true)
+    }
+
+    func deleteLauncher(for group: AppGroup, destinationDirectory: URL? = nil) throws {
+        let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
+        guard FileManager.default.fileExists(atPath: appURL.path) else { return }
+        try FileManager.default.removeItem(at: appURL)
+    }
+
     func defaultDestinationDirectory() throws -> URL {
-        try AppSupportPaths.userLaunchersDirectory
+        try customDefaultDestinationDirectory ?? AppSupportPaths.userLaunchersDirectory
     }
 
     private func launcherDisplayName(for group: AppGroup) -> String {

@@ -5,10 +5,24 @@ struct SidebarView: View {
     @Binding var selection: AppGroup.ID?
     let onCreateGroup: () -> Void
 
+    @State private var pendingDeletionRequest: GroupDeletionRequest?
+
     var body: some View {
         sidebarList
             .frame(minWidth: 220, idealWidth: 260)
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+            .confirmationDialog(
+                deletionDialogTitle,
+                isPresented: isShowingDeletionConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("삭제", role: .destructive, action: confirmDeletion)
+                Button("취소", role: .cancel) {
+                    pendingDeletionRequest = nil
+                }
+            } message: {
+                Text(deletionDialogMessage)
+            }
     }
 
     private var sidebarList: some View {
@@ -58,16 +72,78 @@ struct SidebarView: View {
     }
 
     private func deleteGroups(_ offsets: IndexSet) {
-        let selectedID = selection
-        store.deleteGroups(at: offsets)
-        if selectedID.map({ id in !store.groups.contains(where: { $0.id == id }) }) == true {
-            selection = store.groups.first?.id
+        let groupIDs = offsets.compactMap { index in
+            store.groups.indices.contains(index) ? store.groups[index].id : nil
         }
+        requestDeletion(for: groupIDs)
     }
 
     private func deleteSelectedGroup() {
         guard let selection else { return }
-        store.deleteGroup(id: selection)
-        self.selection = store.groups.first?.id
+        requestDeletion(for: [selection])
+    }
+
+    private func requestDeletion(for groupIDs: [AppGroup.ID]) {
+        let groups = groupIDs.compactMap { groupID in
+            store.groups.first { $0.id == groupID }
+        }
+        guard !groups.isEmpty else { return }
+        pendingDeletionRequest = GroupDeletionRequest(groups: groups)
+    }
+
+    private func confirmDeletion() {
+        guard let pendingDeletionRequest else { return }
+        let deletedIDs = Set(pendingDeletionRequest.groupIDs)
+        for groupID in pendingDeletionRequest.groupIDs {
+            store.deleteGroup(id: groupID)
+        }
+        if selection.map({ deletedIDs.contains($0) }) == true {
+            selection = store.groups.first?.id
+        }
+        self.pendingDeletionRequest = nil
+    }
+
+    private var isShowingDeletionConfirmation: Binding<Bool> {
+        Binding {
+            pendingDeletionRequest != nil
+        } set: { isPresented in
+            if !isPresented {
+                pendingDeletionRequest = nil
+            }
+        }
+    }
+
+    private var deletionDialogTitle: String {
+        guard let pendingDeletionRequest else {
+            return "그룹 삭제"
+        }
+
+        if pendingDeletionRequest.groupNames.count == 1, let groupName = pendingDeletionRequest.groupNames.first {
+            return "\"\(groupName)\" 삭제"
+        }
+
+        return "\(pendingDeletionRequest.groupNames.count)개 그룹 삭제"
+    }
+
+    private var deletionDialogMessage: String {
+        guard let pendingDeletionRequest else {
+            return ""
+        }
+
+        if pendingDeletionRequest.groupNames.count == 1 {
+            return "이 그룹과 생성된 GatherTab 런처를 삭제합니다. 그룹에 포함된 앱은 삭제되지 않습니다."
+        }
+
+        return "선택한 그룹과 생성된 GatherTab 런처를 삭제합니다. 그룹에 포함된 앱은 삭제되지 않습니다."
+    }
+}
+
+private struct GroupDeletionRequest {
+    let groupIDs: [AppGroup.ID]
+    let groupNames: [String]
+
+    init(groups: [AppGroup]) {
+        self.groupIDs = groups.map(\.id)
+        self.groupNames = groups.map(\.name)
     }
 }

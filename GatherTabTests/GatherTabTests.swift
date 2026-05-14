@@ -79,6 +79,49 @@ final class GatherTabTests: XCTestCase {
         XCTAssertNotEqual(firstFileName, secondFileName)
     }
 
+    func testDeletingGroupRemovesPersistedGroupAndGeneratedLauncher() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabDeleteGroupTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let launchersDirectory = testDirectory.appendingPathComponent("Launchers", isDirectory: true)
+        let runtimeExecutableURL = testDirectory
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let launcherGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: runtimeExecutableURL,
+            defaultDestinationDirectory: launchersDirectory
+        )
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            launcherGeneratorService: launcherGenerator
+        )
+        store.createGroup(named: "Dev/Test")
+        let group = try XCTUnwrap(store.groups.first)
+        store.generateLauncher(for: group.id)
+        let launcherURL = try launcherGenerator.launcherURL(for: group)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: launcherURL.path))
+
+        store.deleteGroup(id: group.id)
+
+        XCTAssertTrue(store.groups.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: launcherURL.path))
+
+        let savedData = try Data(contentsOf: groupsFileURL)
+        let savedGroups = try JSONDecoder().decode([AppGroup].self, from: savedData)
+        XCTAssertTrue(savedGroups.isEmpty)
+    }
+
     func testActivationUsesWindowHelperBeforeFallbackActivation() {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",

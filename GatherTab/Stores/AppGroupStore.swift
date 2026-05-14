@@ -8,11 +8,17 @@ final class AppGroupStore: ObservableObject {
     @Published var lastLauncherGenerationResult: LauncherGenerationResult?
     @Published var lastErrorMessage: String?
 
+    private let groupsFileURL: URL?
     private let iconService = GroupIconService()
     private let activationService = AppActivationService()
-    private let launcherGeneratorService = LauncherAppGeneratorService()
+    private let launcherGeneratorService: LauncherAppGeneratorService
 
-    init() {
+    init(
+        groupsFileURL: URL? = nil,
+        launcherGeneratorService: LauncherAppGeneratorService? = nil
+    ) {
+        self.groupsFileURL = groupsFileURL
+        self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
         regenerateMissingIcons()
     }
@@ -37,7 +43,7 @@ final class AppGroupStore: ObservableObject {
             groups.remove(at: index)
         }
         for group in removedGroups {
-            deleteIcon(for: group)
+            deleteResources(for: group)
         }
         save()
     }
@@ -45,7 +51,7 @@ final class AppGroupStore: ObservableObject {
     func deleteGroup(id: AppGroup.ID) {
         guard let index = groups.firstIndex(where: { $0.id == id }) else { return }
         let group = groups.remove(at: index)
-        deleteIcon(for: group)
+        deleteResources(for: group)
         save()
     }
 
@@ -106,7 +112,7 @@ final class AppGroupStore: ObservableObject {
 
     private func load() {
         do {
-            let fileURL = try AppSupportPaths.groupsFileURL
+            let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
                 groups = []
                 return
@@ -122,7 +128,11 @@ final class AppGroupStore: ObservableObject {
 
     private func save() {
         do {
-            let fileURL = try AppSupportPaths.groupsFileURL
+            let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(groups)
@@ -160,6 +170,15 @@ final class AppGroupStore: ObservableObject {
             }
         } catch {
             lastErrorMessage = "그룹 아이콘을 갱신하지 못했습니다: \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteResources(for group: AppGroup) {
+        deleteIcon(for: group)
+        do {
+            try launcherGeneratorService.deleteLauncher(for: group)
+        } catch {
+            lastErrorMessage = "런처 앱을 삭제하지 못했습니다: \(error.localizedDescription)"
         }
     }
 
