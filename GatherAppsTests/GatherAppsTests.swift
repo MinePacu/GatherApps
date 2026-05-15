@@ -205,7 +205,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let launcherGenerator = LauncherAppGeneratorService(
@@ -340,7 +340,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
@@ -381,7 +381,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
@@ -399,7 +399,7 @@ final class GatherAppsTests: XCTestCase {
     func testLauncherGeneratorDefaultsToUserApplicationsLaunchersDirectory() throws {
         let runtimeExecutableURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("GatherAppsLauncherDefaultDestinationRuntime-\(UUID().uuidString)")
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         defer {
             try? FileManager.default.removeItem(at: runtimeExecutableURL)
         }
@@ -426,8 +426,10 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let runtimeContents = "compiled foreground runtime"
-        try runtimeContents.write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        let runtimeContents = try Self.writeRuntimeExecutable(
+            named: "compiled foreground runtime",
+            to: runtimeExecutableURL
+        )
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
@@ -461,8 +463,11 @@ final class GatherAppsTests: XCTestCase {
             at: currentRuntimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
-        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "old runtime", to: oldRuntimeExecutableURL)
+        let currentRuntimeContents = try Self.writeRuntimeExecutable(
+            named: "current runtime",
+            to: currentRuntimeExecutableURL
+        )
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
 
@@ -487,7 +492,7 @@ final class GatherAppsTests: XCTestCase {
         )
 
         XCTAssertTrue(regenerated)
-        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), "current runtime")
+        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), currentRuntimeContents)
         XCTAssertEqual(info["GatherAppsShowsGatherAppsWindow"] as? Bool, true)
     }
 
@@ -512,8 +517,8 @@ final class GatherAppsTests: XCTestCase {
             at: currentRuntimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
-        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "old runtime", to: oldRuntimeExecutableURL)
+        try Self.writeRuntimeExecutable(named: "current runtime", to: currentRuntimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
 
@@ -562,8 +567,8 @@ final class GatherAppsTests: XCTestCase {
             at: currentRuntimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
-        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "old runtime", to: oldRuntimeExecutableURL)
+        try Self.writeRuntimeExecutable(named: "current runtime", to: currentRuntimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
 
@@ -600,7 +605,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let lifecycleManager = StubLauncherAppLifecycleManager(runningBundleIdentifiers: [
@@ -642,8 +647,8 @@ final class GatherAppsTests: XCTestCase {
             at: currentRuntimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
-        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "old runtime", to: oldRuntimeExecutableURL)
+        try Self.writeRuntimeExecutable(named: "current runtime", to: currentRuntimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
 
@@ -687,7 +692,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let regenerated = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
@@ -712,7 +717,7 @@ final class GatherAppsTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try FileManager.default.createDirectory(at: appBundleURL, withIntermediateDirectories: true)
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let generator = LauncherAppGeneratorService(
@@ -747,7 +752,7 @@ final class GatherAppsTests: XCTestCase {
         )
         try FileManager.default.createDirectory(at: oldAppBundleURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: currentAppBundleURL, withIntermediateDirectories: true)
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         _ = try LauncherAppGeneratorService(
@@ -785,7 +790,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let generator = LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
@@ -831,8 +836,11 @@ final class GatherAppsTests: XCTestCase {
             at: currentRuntimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
-        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "old runtime", to: oldRuntimeExecutableURL)
+        let currentRuntimeContents = try Self.writeRuntimeExecutable(
+            named: "current runtime",
+            to: currentRuntimeExecutableURL
+        )
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
 
@@ -860,7 +868,7 @@ final class GatherAppsTests: XCTestCase {
             PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
         )
 
-        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), "current runtime")
+        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), currentRuntimeContents)
         XCTAssertEqual(info["GatherAppsShowsGatherAppsWindow"] as? Bool, true)
     }
 
@@ -879,7 +887,7 @@ final class GatherAppsTests: XCTestCase {
             at: runtimeExecutableURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try Self.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
 
         let store = AppGroupStore(
@@ -914,6 +922,23 @@ final class GatherAppsTests: XCTestCase {
         return try XCTUnwrap(
             PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
         )
+    }
+
+    @discardableResult
+    private static func writeRuntimeExecutable(named name: String, to url: URL) throws -> String {
+        let contents = """
+        #!/bin/sh
+        # \(name)
+        exit 0
+
+        """
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return contents
     }
 
     private static func launcherBundleIdentifier(for group: AppGroup) -> String {
