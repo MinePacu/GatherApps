@@ -1,4 +1,8 @@
-# GatherApps
+<p align="center">
+  <img src="GatherApps/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" alt="GatherApps icon" width="128" height="128">
+</p>
+
+<h1 align="center">GatherApps</h1>
 
 English | [한국어](README.md) | [日本語](README.ja.md)
 
