@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>GatherApps Group Activation</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gatherapps</string>
+			</array>
+		</dict>
+	</array>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Wkte2Eh6d2Q48fygJejN/y4Qr5g8s0gG8tnxO2to3K4=</string>
+</dict>
+</plist>

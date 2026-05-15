@@ -1,0 +1,892 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0DCF40D16DAB404C8D0FD0FC /* GatherAppsWindowHelper.app in Copy Login Item */ = {isa = PBXBuildFile; fileRef = 136320E4D79A482799D3A83A /* GatherAppsWindowHelper.app */; };
+		3A0B0AB4D5FE4C3EA782BB02 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 27C3370A38B34DB8B32BB87D /* Sparkle */; };
+		9A4C3C4A8DBE4AA6B9141E02 /* GatherAppsLauncherRuntime in Copy Launcher Runtime */ = {isa = PBXBuildFile; fileRef = 9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7D9A69062FB317A1001A1BCF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7D9A68F52FB3179F001A1BCF;
+			remoteInfo = GatherApps;
+		};
+		7D9A69102FB317A1001A1BCF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7D9A68F52FB3179F001A1BCF;
+			remoteInfo = GatherApps;
+		};
+		CB392B7E096C47818E35D691 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CFB2DC88E77442B5A211792D;
+			remoteInfo = GatherAppsWindowHelper;
+		};
+		F51087D7F6E64AA2B73CD9C4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8823D9B1F84843F6AA7C3177;
+			remoteInfo = GatherAppsLauncherRuntime;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		35C675310F604AE4938D8F40 /* Copy Launcher Runtime */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Resources/LauncherRuntime;
+			dstSubfolderSpec = 1;
+			files = (
+				9A4C3C4A8DBE4AA6B9141E02 /* GatherAppsLauncherRuntime in Copy Launcher Runtime */,
+			);
+			name = "Copy Launcher Runtime";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		639A6BFB21FF437FADFF604E /* Copy Login Item */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LoginItems;
+			dstSubfolderSpec = 1;
+			files = (
+				0DCF40D16DAB404C8D0FD0FC /* GatherAppsWindowHelper.app in Copy Login Item */,
+			);
+			name = "Copy Login Item";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		136320E4D79A482799D3A83A /* GatherAppsWindowHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GatherAppsWindowHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7D9A68F62FB3179F001A1BCF /* GatherApps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GatherApps.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7D9A69052FB317A1001A1BCF /* GatherAppsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherAppsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7D9A690F2FB317A1001A1BCF /* GatherAppsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherAppsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = GatherAppsLauncherRuntime; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7D9A69222FB317A1001A1BCF /* Exceptions for "GatherApps" folder in "GatherApps" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 7D9A68F52FB3179F001A1BCF /* GatherApps */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		64A7DD831BA343D39853004A /* GatherAppsWindowHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GatherAppsWindowHelper;
+			sourceTree = "<group>";
+		};
+		7D9A68F82FB3179F001A1BCF /* GatherApps */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7D9A69222FB317A1001A1BCF /* Exceptions for "GatherApps" folder in "GatherApps" target */,
+			);
+			path = GatherApps;
+			sourceTree = "<group>";
+		};
+		7D9A69082FB317A1001A1BCF /* GatherAppsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GatherAppsTests;
+			sourceTree = "<group>";
+		};
+		7D9A69122FB317A1001A1BCF /* GatherAppsUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GatherAppsUITests;
+			sourceTree = "<group>";
+		};
+		97BB379DC1FA41D79C14BAE8 /* GatherAppsLauncherRuntime */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GatherAppsLauncherRuntime;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7D9A68F32FB3179F001A1BCF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3A0B0AB4D5FE4C3EA782BB02 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A69022FB317A1001A1BCF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A690C2FB317A1001A1BCF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D8DDFFFF0A453F98D8AC70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F78F3324C9CB4980BD1239A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		7D9A68ED2FB3179F001A1BCF = {
+			isa = PBXGroup;
+			children = (
+				7D9A68F82FB3179F001A1BCF /* GatherApps */,
+				64A7DD831BA343D39853004A /* GatherAppsWindowHelper */,
+				97BB379DC1FA41D79C14BAE8 /* GatherAppsLauncherRuntime */,
+				7D9A69082FB317A1001A1BCF /* GatherAppsTests */,
+				7D9A69122FB317A1001A1BCF /* GatherAppsUITests */,
+				7D9A68F72FB3179F001A1BCF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7D9A68F72FB3179F001A1BCF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7D9A68F62FB3179F001A1BCF /* GatherApps.app */,
+				136320E4D79A482799D3A83A /* GatherAppsWindowHelper.app */,
+				9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */,
+				7D9A69052FB317A1001A1BCF /* GatherAppsTests.xctest */,
+				7D9A690F2FB317A1001A1BCF /* GatherAppsUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7D9A68F52FB3179F001A1BCF /* GatherApps */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D9A69192FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherApps" */;
+			buildPhases = (
+				7D9A68F22FB3179F001A1BCF /* Sources */,
+				7D9A68F32FB3179F001A1BCF /* Frameworks */,
+				7D9A68F42FB3179F001A1BCF /* Resources */,
+				639A6BFB21FF437FADFF604E /* Copy Login Item */,
+				35C675310F604AE4938D8F40 /* Copy Launcher Runtime */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8E395C8393624ABC99873E4B /* PBXTargetDependency */,
+				F2E58D57A98740F9B4B093E3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7D9A68F82FB3179F001A1BCF /* GatherApps */,
+			);
+			name = GatherApps;
+			packageProductDependencies = (
+				27C3370A38B34DB8B32BB87D /* Sparkle */,
+			);
+			productName = GatherApps;
+			productReference = 7D9A68F62FB3179F001A1BCF /* GatherApps.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7D9A69042FB317A1001A1BCF /* GatherAppsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D9A691C2FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherAppsTests" */;
+			buildPhases = (
+				7D9A69012FB317A1001A1BCF /* Sources */,
+				7D9A69022FB317A1001A1BCF /* Frameworks */,
+				7D9A69032FB317A1001A1BCF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7D9A69072FB317A1001A1BCF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7D9A69082FB317A1001A1BCF /* GatherAppsTests */,
+			);
+			name = GatherAppsTests;
+			packageProductDependencies = (
+			);
+			productName = GatherAppsTests;
+			productReference = 7D9A69052FB317A1001A1BCF /* GatherAppsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7D9A690E2FB317A1001A1BCF /* GatherAppsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7D9A691F2FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherAppsUITests" */;
+			buildPhases = (
+				7D9A690B2FB317A1001A1BCF /* Sources */,
+				7D9A690C2FB317A1001A1BCF /* Frameworks */,
+				7D9A690D2FB317A1001A1BCF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7D9A69112FB317A1001A1BCF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7D9A69122FB317A1001A1BCF /* GatherAppsUITests */,
+			);
+			name = GatherAppsUITests;
+			packageProductDependencies = (
+			);
+			productName = GatherAppsUITests;
+			productReference = 7D9A690F2FB317A1001A1BCF /* GatherAppsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		8823D9B1F84843F6AA7C3177 /* GatherAppsLauncherRuntime */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E8269D07E15C433C93DEFF17 /* Build configuration list for PBXNativeTarget "GatherAppsLauncherRuntime" */;
+			buildPhases = (
+				E7CC40A53E6144E69C15C183 /* Sources */,
+				F78F3324C9CB4980BD1239A3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				97BB379DC1FA41D79C14BAE8 /* GatherAppsLauncherRuntime */,
+			);
+			name = GatherAppsLauncherRuntime;
+			packageProductDependencies = (
+			);
+			productName = GatherAppsLauncherRuntime;
+			productReference = 9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */;
+			productType = "com.apple.product-type.tool";
+		};
+		CFB2DC88E77442B5A211792D /* GatherAppsWindowHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A392916D77C146018D09B549 /* Build configuration list for PBXNativeTarget "GatherAppsWindowHelper" */;
+			buildPhases = (
+				D646D1C390C143509BEB1BFA /* Sources */,
+				E5D8DDFFFF0A453F98D8AC70 /* Frameworks */,
+				AA5D3E86D67B48C29A3E5AE5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				64A7DD831BA343D39853004A /* GatherAppsWindowHelper */,
+			);
+			name = GatherAppsWindowHelper;
+			packageProductDependencies = (
+			);
+			productName = GatherAppsWindowHelper;
+			productReference = 136320E4D79A482799D3A83A /* GatherAppsWindowHelper.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7D9A68EE2FB3179F001A1BCF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					7D9A68F52FB3179F001A1BCF = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+					7D9A69042FB317A1001A1BCF = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = 7D9A68F52FB3179F001A1BCF;
+					};
+					7D9A690E2FB317A1001A1BCF = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = 7D9A68F52FB3179F001A1BCF;
+					};
+					8823D9B1F84843F6AA7C3177 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+					CFB2DC88E77442B5A211792D = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+				};
+			};
+			buildConfigurationList = 7D9A68F12FB3179F001A1BCF /* Build configuration list for PBXProject "GatherApps" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				ko,
+				ja,
+			);
+			mainGroup = 7D9A68ED2FB3179F001A1BCF;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA8F5F7D11D247529E4210DF /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7D9A68F72FB3179F001A1BCF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7D9A68F52FB3179F001A1BCF /* GatherApps */,
+				CFB2DC88E77442B5A211792D /* GatherAppsWindowHelper */,
+				8823D9B1F84843F6AA7C3177 /* GatherAppsLauncherRuntime */,
+				7D9A69042FB317A1001A1BCF /* GatherAppsTests */,
+				7D9A690E2FB317A1001A1BCF /* GatherAppsUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7D9A68F42FB3179F001A1BCF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A69032FB317A1001A1BCF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A690D2FB317A1001A1BCF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA5D3E86D67B48C29A3E5AE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7D9A68F22FB3179F001A1BCF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A69012FB317A1001A1BCF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D9A690B2FB317A1001A1BCF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D646D1C390C143509BEB1BFA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E7CC40A53E6144E69C15C183 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7D9A69072FB317A1001A1BCF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7D9A68F52FB3179F001A1BCF /* GatherApps */;
+			targetProxy = 7D9A69062FB317A1001A1BCF /* PBXContainerItemProxy */;
+		};
+		7D9A69112FB317A1001A1BCF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7D9A68F52FB3179F001A1BCF /* GatherApps */;
+			targetProxy = 7D9A69102FB317A1001A1BCF /* PBXContainerItemProxy */;
+		};
+		8E395C8393624ABC99873E4B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CFB2DC88E77442B5A211792D /* GatherAppsWindowHelper */;
+			targetProxy = CB392B7E096C47818E35D691 /* PBXContainerItemProxy */;
+		};
+		F2E58D57A98740F9B4B093E3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8823D9B1F84843F6AA7C3177 /* GatherAppsLauncherRuntime */;
+			targetProxy = F51087D7F6E64AA2B73CD9C4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		07D9AF9789CF423EBDE67FEE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSBackgroundOnly = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherApps.WindowHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		1289B475C35C44A3B3C8A6DA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSBackgroundOnly = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherApps.WindowHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5031889770B049B08055BC60 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5C63F2376C6F452DB12D3E9E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7D9A69172FB317A1001A1BCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7D9A69182FB317A1001A1BCF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		7D9A691A2FB317A1001A1BCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GatherApps/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherApps;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7D9A691B2FB317A1001A1BCF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8648BH462V;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GatherApps/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherApps;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7D9A691D2FB317A1001A1BCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherAppsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GatherApps.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GatherApps";
+			};
+			name = Debug;
+		};
+		7D9A691E2FB317A1001A1BCF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherAppsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GatherApps.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GatherApps";
+			};
+			name = Release;
+		};
+		7D9A69202FB317A1001A1BCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherAppsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = GatherApps;
+			};
+			name = Debug;
+		};
+		7D9A69212FB317A1001A1BCF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.minepacu.GatherAppsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = GatherApps;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7D9A68F12FB3179F001A1BCF /* Build configuration list for PBXProject "GatherApps" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D9A69172FB317A1001A1BCF /* Debug */,
+				7D9A69182FB317A1001A1BCF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7D9A69192FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherApps" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D9A691A2FB317A1001A1BCF /* Debug */,
+				7D9A691B2FB317A1001A1BCF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7D9A691C2FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherAppsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D9A691D2FB317A1001A1BCF /* Debug */,
+				7D9A691E2FB317A1001A1BCF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7D9A691F2FB317A1001A1BCF /* Build configuration list for PBXNativeTarget "GatherAppsUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D9A69202FB317A1001A1BCF /* Debug */,
+				7D9A69212FB317A1001A1BCF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A392916D77C146018D09B549 /* Build configuration list for PBXNativeTarget "GatherAppsWindowHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1289B475C35C44A3B3C8A6DA /* Debug */,
+				07D9AF9789CF423EBDE67FEE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E8269D07E15C433C93DEFF17 /* Build configuration list for PBXNativeTarget "GatherAppsLauncherRuntime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5031889770B049B08055BC60 /* Debug */,
+				5C63F2376C6F452DB12D3E9E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA8F5F7D11D247529E4210DF /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		27C3370A38B34DB8B32BB87D /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA8F5F7D11D247529E4210DF /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7D9A68EE2FB3179F001A1BCF /* Project object */;
+}
