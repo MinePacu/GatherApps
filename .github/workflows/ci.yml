@@ -47,6 +47,7 @@ jobs:
             -scheme GatherApps \
             -configuration Debug \
             -destination 'platform=macOS' \
+            -parallel-testing-enabled NO \
             -derivedDataPath DerivedData \
             MACOSX_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGNING_ALLOWED=NO
