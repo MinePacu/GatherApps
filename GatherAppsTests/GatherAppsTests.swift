@@ -436,7 +436,7 @@ final class GatherAppsTests: XCTestCase {
             .generateLauncher(for: group, destinationDirectory: destination)
 
         let executableURL = result.appURL.appendingPathComponent("Contents/MacOS/GatherAppsLauncher")
-        let generatedContents = try String(contentsOf: executableURL, encoding: .utf8)
+        let generatedContents = try Data(contentsOf: executableURL)
 
         XCTAssertEqual(generatedContents, runtimeContents)
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executableURL.path))
@@ -492,7 +492,7 @@ final class GatherAppsTests: XCTestCase {
         )
 
         XCTAssertTrue(regenerated)
-        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), currentRuntimeContents)
+        XCTAssertEqual(try Data(contentsOf: executableURL), currentRuntimeContents)
         XCTAssertEqual(info["GatherAppsShowsGatherAppsWindow"] as? Bool, true)
     }
 
@@ -868,7 +868,7 @@ final class GatherAppsTests: XCTestCase {
             PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
         )
 
-        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), currentRuntimeContents)
+        XCTAssertEqual(try Data(contentsOf: executableURL), currentRuntimeContents)
         XCTAssertEqual(info["GatherAppsShowsGatherAppsWindow"] as? Bool, true)
     }
 
@@ -925,20 +925,32 @@ final class GatherAppsTests: XCTestCase {
     }
 
     @discardableResult
-    private static func writeRuntimeExecutable(named name: String, to url: URL) throws -> String {
-        let contents = """
-        #!/bin/sh
-        # \(name)
-        exit 0
-
-        """
+    private static func writeRuntimeExecutable(named name: String, to url: URL) throws -> Data {
+        let fixtureURL = runtimeFixtureURL(named: name)
+        let contents = try Data(contentsOf: fixtureURL)
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try contents.write(to: url, atomically: true, encoding: .utf8)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        try FileManager.default.copyItem(at: fixtureURL, to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return contents
+    }
+
+    private static func runtimeFixtureURL(named name: String) -> URL {
+        let path: String
+        switch name {
+        case "old runtime":
+            path = "/usr/bin/false"
+        case "current runtime":
+            path = "/bin/echo"
+        default:
+            path = "/usr/bin/true"
+        }
+        return URL(fileURLWithPath: path)
     }
 
     private static func launcherBundleIdentifier(for group: AppGroup) -> String {
