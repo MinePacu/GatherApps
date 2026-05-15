@@ -37,6 +37,7 @@
 "groupDetail.groupApps" = "그룹 앱";
 "groupDetail.groupNotFound" = "그룹을 찾을 수 없습니다";
 "groupDetail.launcherCreated" = "런처 생성됨: %@";
+"groupDetail.launcherShowsGatherTabWindow" = "런처 실행 시 GatherTab 창 표시";
 "groupDetail.noApps" = "아직 앱이 없습니다";
 "groupDetail.refreshList" = "목록 새로고침";
 "groupDetail.removeFromGroup" = "그룹에서 제거";

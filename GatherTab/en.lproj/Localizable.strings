@@ -37,6 +37,7 @@
 "groupDetail.groupApps" = "Group Apps";
 "groupDetail.groupNotFound" = "Group not found";
 "groupDetail.launcherCreated" = "Launcher created: %@";
+"groupDetail.launcherShowsGatherTabWindow" = "Show GatherTab window when launcher runs";
 "groupDetail.noApps" = "No apps yet";
 "groupDetail.refreshList" = "Refresh list";
 "groupDetail.removeFromGroup" = "Remove from group";

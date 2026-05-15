@@ -321,6 +321,35 @@ final class GatherTabTests: XCTestCase {
         XCTAssertNil(info["LSBackgroundOnly"])
     }
 
+    func testLauncherGeneratorCanCreateLauncherThatShowsGatherTabWindow() throws {
+        let group = AppGroup(name: "Visible Window")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherWindowPolicyTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let result = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
+            .generateLauncher(for: group, showsGatherTabWindow: true, destinationDirectory: destination)
+
+        let infoPlistURL = result.appURL.appendingPathComponent("Contents/Info.plist")
+        let infoData = try Data(contentsOf: infoPlistURL)
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+
+        XCTAssertEqual(info["GatherTabShowsGatherTabWindow"] as? Bool, true)
+    }
+
     func testLauncherGeneratorDefaultsToUserApplicationsLaunchersDirectory() throws {
         let runtimeExecutableURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("GatherTabLauncherDefaultDestinationRuntime-\(UUID().uuidString)")
@@ -365,11 +394,523 @@ final class GatherTabTests: XCTestCase {
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executableURL.path))
     }
 
+    func testLauncherGeneratorRegeneratesExistingLauncherWhenRuntimeIsStale() throws {
+        let group = AppGroup(name: "Refreshable", launcherShowsGatherTabWindow: true)
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherRefreshTests-\(UUID().uuidString)", isDirectory: true)
+        let oldRuntimeExecutableURL = destination
+            .appendingPathComponent("OldRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let currentRuntimeExecutableURL = destination
+            .appendingPathComponent("CurrentRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: oldRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: currentRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
+
+        let oldGenerator = LauncherAppGeneratorService(launcherRuntimeExecutableURL: oldRuntimeExecutableURL)
+        let result = try oldGenerator.generateLauncher(
+            for: group,
+            showsGatherTabWindow: false,
+            destinationDirectory: destination
+        )
+        let currentGenerator = LauncherAppGeneratorService(launcherRuntimeExecutableURL: currentRuntimeExecutableURL)
+
+        let regenerated = try currentGenerator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        let executableURL = result.appURL.appendingPathComponent("Contents/MacOS/GatherTabLauncher")
+        let infoPlistURL = result.appURL.appendingPathComponent("Contents/Info.plist")
+        let infoData = try Data(contentsOf: infoPlistURL)
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), "current runtime")
+        XCTAssertEqual(info["GatherTabShowsGatherTabWindow"] as? Bool, true)
+    }
+
+    func testLauncherGeneratorTerminatesRegeneratesAndRelaunchesRunningStaleLauncher() throws {
+        let group = AppGroup(name: "Running Stale")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabRunningStaleLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let oldRuntimeExecutableURL = destination
+            .appendingPathComponent("OldRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let currentRuntimeExecutableURL = destination
+            .appendingPathComponent("CurrentRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: oldRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: currentRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
+
+        _ = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: oldRuntimeExecutableURL)
+            .generateLauncher(for: group, destinationDirectory: destination)
+        let lifecycleManager = StubLauncherAppLifecycleManager(runningBundleIdentifiers: [
+            Self.launcherBundleIdentifier(for: group)
+        ])
+        let currentGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: currentRuntimeExecutableURL,
+            launcherAppLifecycleManager: lifecycleManager
+        )
+
+        let regenerated = try currentGenerator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        let launcherURL = try currentGenerator.launcherURL(for: group, destinationDirectory: destination)
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(lifecycleManager.events, [
+            .checkedRunning(Self.launcherBundleIdentifier(for: group)),
+            .terminated(Self.launcherBundleIdentifier(for: group)),
+            .launched(launcherURL)
+        ])
+    }
+
+    func testLauncherGeneratorDoesNotRelaunchNonRunningStaleLauncher() throws {
+        let group = AppGroup(name: "Non Running Stale")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabNonRunningStaleLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let oldRuntimeExecutableURL = destination
+            .appendingPathComponent("OldRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let currentRuntimeExecutableURL = destination
+            .appendingPathComponent("CurrentRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: oldRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: currentRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
+
+        _ = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: oldRuntimeExecutableURL)
+            .generateLauncher(for: group, destinationDirectory: destination)
+        let lifecycleManager = StubLauncherAppLifecycleManager()
+        let currentGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: currentRuntimeExecutableURL,
+            launcherAppLifecycleManager: lifecycleManager
+        )
+
+        let regenerated = try currentGenerator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(lifecycleManager.events, [
+            .checkedRunning(Self.launcherBundleIdentifier(for: group))
+        ])
+    }
+
+    func testLauncherGeneratorDoesNotTerminateCurrentRunningLauncher() throws {
+        let group = AppGroup(name: "Current Running")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabCurrentRunningLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let lifecycleManager = StubLauncherAppLifecycleManager(runningBundleIdentifiers: [
+            Self.launcherBundleIdentifier(for: group)
+        ])
+        let generator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: runtimeExecutableURL,
+            launcherAppLifecycleManager: lifecycleManager
+        )
+        _ = try generator.generateLauncher(for: group, destinationDirectory: destination)
+
+        let regenerated = try generator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        XCTAssertFalse(regenerated)
+        XCTAssertEqual(lifecycleManager.events, [])
+    }
+
+    func testLauncherGeneratorForceTerminatesBeforeRegeneratingWhenGracefulTerminationFails() throws {
+        let group = AppGroup(name: "Force Terminate")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabForceTerminateLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let oldRuntimeExecutableURL = destination
+            .appendingPathComponent("OldRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let currentRuntimeExecutableURL = destination
+            .appendingPathComponent("CurrentRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: oldRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: currentRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
+
+        _ = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: oldRuntimeExecutableURL)
+            .generateLauncher(for: group, destinationDirectory: destination)
+        let lifecycleManager = StubLauncherAppLifecycleManager(
+            runningBundleIdentifiers: [Self.launcherBundleIdentifier(for: group)],
+            gracefulTerminationSucceeds: false
+        )
+        let currentGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: currentRuntimeExecutableURL,
+            launcherAppLifecycleManager: lifecycleManager
+        )
+
+        let regenerated = try currentGenerator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        let launcherURL = try currentGenerator.launcherURL(for: group, destinationDirectory: destination)
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(lifecycleManager.events, [
+            .checkedRunning(Self.launcherBundleIdentifier(for: group)),
+            .terminated(Self.launcherBundleIdentifier(for: group)),
+            .forceTerminated(Self.launcherBundleIdentifier(for: group)),
+            .launched(launcherURL)
+        ])
+    }
+
+    func testLauncherGeneratorIgnoresMissingLauncherDuringStaleCheck() throws {
+        let group = AppGroup(name: "Missing Launcher")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabMissingLauncherRefreshTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let regenerated = try LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
+            .regenerateLauncherIfStale(for: group, destinationDirectory: destination)
+
+        XCTAssertFalse(regenerated)
+    }
+
+    func testLauncherGeneratorDoesNotRegenerateCurrentLauncher() throws {
+        let group = AppGroup(name: "Current Launcher")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabCurrentLauncherTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let appBundleURL = destination.appendingPathComponent("GatherTab.app", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(at: appBundleURL, withIntermediateDirectories: true)
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let generator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: runtimeExecutableURL,
+            appBundleURL: appBundleURL
+        )
+        _ = try generator.generateLauncher(for: group, destinationDirectory: destination)
+
+        let regenerated = try generator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        XCTAssertFalse(regenerated)
+    }
+
+    func testLauncherGeneratorRegeneratesLauncherWhenAppBundlePathIsStale() throws {
+        let group = AppGroup(name: "App Path")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherAppPathTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let oldAppBundleURL = destination.appendingPathComponent("OldGatherTab.app", isDirectory: true)
+        let currentAppBundleURL = destination.appendingPathComponent("GatherTab.app", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(at: oldAppBundleURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: currentAppBundleURL, withIntermediateDirectories: true)
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        _ = try LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: runtimeExecutableURL,
+            appBundleURL: oldAppBundleURL
+        ).generateLauncher(for: group, destinationDirectory: destination)
+        let currentGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: runtimeExecutableURL,
+            appBundleURL: currentAppBundleURL
+        )
+
+        let regenerated = try currentGenerator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        let launcherURL = try currentGenerator.launcherURL(for: group, destinationDirectory: destination)
+        let info = try Self.infoPlist(at: launcherURL)
+
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(info["GatherTabApplicationPath"] as? String, currentAppBundleURL.path)
+    }
+
+    func testLauncherGeneratorRegeneratesLauncherWhenSchemaMetadataIsMissing() throws {
+        let group = AppGroup(name: "Schema")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherSchemaTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let generator = LauncherAppGeneratorService(launcherRuntimeExecutableURL: runtimeExecutableURL)
+        let result = try generator.generateLauncher(for: group, destinationDirectory: destination)
+        let infoPlistURL = result.appURL.appendingPathComponent("Contents/Info.plist")
+        var info = try Self.infoPlist(at: result.appURL)
+        info.removeValue(forKey: "GatherTabLauncherSchemaVersion")
+        let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        try data.write(to: infoPlistURL, options: .atomic)
+
+        let regenerated = try generator.regenerateLauncherIfStale(
+            for: group,
+            destinationDirectory: destination
+        )
+
+        XCTAssertTrue(regenerated)
+        XCTAssertNotNil(try Self.infoPlist(at: result.appURL)["GatherTabLauncherSchemaVersion"])
+    }
+
+    func testAppGroupStorePersistsLauncherWindowPolicyAndRegeneratesStaleLaunchersOnLoad() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabStoreLauncherRefreshTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let launchersDirectory = testDirectory.appendingPathComponent("Launchers", isDirectory: true)
+        let oldRuntimeExecutableURL = testDirectory
+            .appendingPathComponent("OldRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        let currentRuntimeExecutableURL = testDirectory
+            .appendingPathComponent("CurrentRuntime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(
+            at: groupsFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: oldRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: currentRuntimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "old runtime".write(to: oldRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try "current runtime".write(to: currentRuntimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: oldRuntimeExecutableURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: currentRuntimeExecutableURL.path)
+
+        let group = AppGroup(name: "Persisted", launcherShowsGatherTabWindow: true)
+        let oldGenerator = LauncherAppGeneratorService(
+            launcherRuntimeExecutableURL: oldRuntimeExecutableURL,
+            defaultDestinationDirectory: launchersDirectory
+        )
+        let oldResult = try oldGenerator.generateLauncher(for: group, showsGatherTabWindow: false)
+        let groupsData = try JSONEncoder().encode([group])
+        try groupsData.write(to: groupsFileURL, options: .atomic)
+
+        _ = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            launcherGeneratorService: LauncherAppGeneratorService(
+                launcherRuntimeExecutableURL: currentRuntimeExecutableURL,
+                defaultDestinationDirectory: launchersDirectory
+            )
+        )
+
+        let executableURL = oldResult.appURL.appendingPathComponent("Contents/MacOS/GatherTabLauncher")
+        let infoPlistURL = oldResult.appURL.appendingPathComponent("Contents/Info.plist")
+        let infoData = try Data(contentsOf: infoPlistURL)
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+
+        XCTAssertEqual(try String(contentsOf: executableURL, encoding: .utf8), "current runtime")
+        XCTAssertEqual(info["GatherTabShowsGatherTabWindow"] as? Bool, true)
+    }
+
+    func testGeneratingLauncherPersistsLauncherWindowPolicy() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherTabLauncherPolicyPersistTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let launchersDirectory = testDirectory.appendingPathComponent("Launchers", isDirectory: true)
+        let runtimeExecutableURL = testDirectory
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherTabLauncherRuntime")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "runtime executable".write(to: runtimeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            launcherGeneratorService: LauncherAppGeneratorService(
+                launcherRuntimeExecutableURL: runtimeExecutableURL,
+                defaultDestinationDirectory: launchersDirectory
+            )
+        )
+        store.createGroup(named: "Persist Policy")
+        let group = try XCTUnwrap(store.groups.first)
+
+        store.generateLauncher(for: group.id, showsGatherTabWindow: true)
+
+        let savedData = try Data(contentsOf: groupsFileURL)
+        let savedGroups = try JSONDecoder().decode([AppGroup].self, from: savedData)
+
+        XCTAssertEqual(store.groups.first?.launcherShowsGatherTabWindow, true)
+        XCTAssertEqual(savedGroups.first?.launcherShowsGatherTabWindow, true)
+    }
+
     private static func localizationKeys(at url: URL) throws -> Set<String> {
         let data = try Data(contentsOf: url)
         let plist = try PropertyListSerialization.propertyList(from: data, format: nil)
         let strings = try XCTUnwrap(plist as? [String: String])
         return Set(strings.keys)
+    }
+
+    private static func infoPlist(at appURL: URL) throws -> [String: Any] {
+        let infoPlistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        let infoData = try Data(contentsOf: infoPlistURL)
+        return try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+    }
+
+    private static func launcherBundleIdentifier(for group: AppGroup) -> String {
+        "com.minepacu.GatherTab.launcher.\(group.id.uuidString.lowercased())"
+    }
+}
+
+private final class StubLauncherAppLifecycleManager: LauncherAppLifecycleManaging {
+    enum Event: Equatable {
+        case checkedRunning(String)
+        case terminated(String)
+        case forceTerminated(String)
+        case launched(URL)
+    }
+
+    private let runningBundleIdentifiers: Set<String>
+    private let gracefulTerminationSucceeds: Bool
+    private(set) var events: [Event] = []
+
+    init(
+        runningBundleIdentifiers: Set<String> = [],
+        gracefulTerminationSucceeds: Bool = true
+    ) {
+        self.runningBundleIdentifiers = runningBundleIdentifiers
+        self.gracefulTerminationSucceeds = gracefulTerminationSucceeds
+    }
+
+    func isLauncherRunning(bundleIdentifier: String) -> Bool {
+        events.append(.checkedRunning(bundleIdentifier))
+        return runningBundleIdentifiers.contains(bundleIdentifier)
+    }
+
+    func terminateLauncher(bundleIdentifier: String) -> Bool {
+        events.append(.terminated(bundleIdentifier))
+        return gracefulTerminationSucceeds
+    }
+
+    func forceTerminateLauncher(bundleIdentifier: String) {
+        events.append(.forceTerminated(bundleIdentifier))
+    }
+
+    func launchLauncher(at appURL: URL) {
+        events.append(.launched(appURL))
     }
 }
 

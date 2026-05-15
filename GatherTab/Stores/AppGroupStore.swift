@@ -21,6 +21,7 @@ final class AppGroupStore: ObservableObject {
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
         regenerateMissingIcons()
+        regenerateStaleLaunchers()
     }
 
     func createGroup(named name: String) {
@@ -95,14 +96,27 @@ final class AppGroupStore: ObservableObject {
         return groupID
     }
 
-    func generateLauncher(for groupID: AppGroup.ID) {
-        guard let group = groups.first(where: { $0.id == groupID }) else { return }
+    func generateLauncher(for groupID: AppGroup.ID, showsGatherTabWindow: Bool = false) {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+
+        groups[index].launcherShowsGatherTabWindow = showsGatherTabWindow
+        save()
 
         do {
-            lastLauncherGenerationResult = try launcherGeneratorService.generateLauncher(for: group)
+            lastLauncherGenerationResult = try launcherGeneratorService.generateLauncher(
+                for: groups[index],
+                showsGatherTabWindow: showsGatherTabWindow
+            )
         } catch {
             lastErrorMessage = L10n.format("errors.launcherGenerationFailed", error.localizedDescription)
         }
+    }
+
+    func setLauncherShowsGatherTabWindow(_ showsGatherTabWindow: Bool, for groupID: AppGroup.ID) {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        guard groups[index].launcherShowsGatherTabWindow != showsGatherTabWindow else { return }
+        groups[index].launcherShowsGatherTabWindow = showsGatherTabWindow
+        save()
     }
 
     func iconImageURL(for group: AppGroup) -> URL? {
@@ -170,6 +184,16 @@ final class AppGroupStore: ObservableObject {
             }
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconRefreshFailed", error.localizedDescription)
+        }
+    }
+
+    private func regenerateStaleLaunchers() {
+        for group in groups {
+            do {
+                _ = try launcherGeneratorService.regenerateLauncherIfStale(for: group)
+            } catch {
+                lastErrorMessage = L10n.format("errors.launcherGenerationFailed", error.localizedDescription)
+            }
         }
     }
 

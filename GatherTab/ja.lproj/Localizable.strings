@@ -37,6 +37,7 @@
 "groupDetail.groupApps" = "グループのアプリ";
 "groupDetail.groupNotFound" = "グループが見つかりません";
 "groupDetail.launcherCreated" = "ランチャーを作成しました: %@";
+"groupDetail.launcherShowsGatherTabWindow" = "ランチャー実行時にGatherTabウインドウを表示";
 "groupDetail.noApps" = "まだアプリがありません";
 "groupDetail.refreshList" = "リストを更新";
 "groupDetail.removeFromGroup" = "グループから削除";

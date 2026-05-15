@@ -52,12 +52,23 @@ struct GroupDetailView: View {
             .controlSize(.large)
             .disabled(group.apps.isEmpty)
 
-            Button {
-                store.generateLauncher(for: group.id)
-            } label: {
-                Label("groupDetail.generateLauncher", systemImage: "app.badge")
+            VStack(alignment: .trailing, spacing: 8) {
+                Toggle(isOn: launcherWindowPolicyBinding(for: group)) {
+                    Text("groupDetail.launcherShowsGatherTabWindow")
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Button {
+                    store.generateLauncher(
+                        for: group.id,
+                        showsGatherTabWindow: group.launcherShowsGatherTabWindow
+                    )
+                } label: {
+                    Label("groupDetail.generateLauncher", systemImage: "app.badge")
+                }
+                .controlSize(.large)
             }
-            .controlSize(.large)
         }
         .padding(20)
     }
@@ -195,6 +206,13 @@ struct GroupDetailView: View {
 
     private func refreshRunningApps() {
         runningApps = runningAppService.fetchRunningApps()
+    }
+
+    private func launcherWindowPolicyBinding(for group: AppGroup) -> Binding<Bool> {
+        Binding(
+            get: { group.launcherShowsGatherTabWindow },
+            set: { store.setLauncherShowsGatherTabWindow($0, for: group.id) }
+        )
     }
 
     private func availableRunningApps(for group: AppGroup) -> [RunningAppInfo] {

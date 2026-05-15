@@ -1,22 +1,41 @@
 import AppKit
 import Foundation
 
+protocol LauncherAppLifecycleManaging {
+    func isLauncherRunning(bundleIdentifier: String) -> Bool
+    func terminateLauncher(bundleIdentifier: String) -> Bool
+    func forceTerminateLauncher(bundleIdentifier: String)
+    func launchLauncher(at appURL: URL)
+}
+
 struct LauncherAppGeneratorService {
     private static let launcherExecutableName = "GatherTabLauncher"
+    private static let launcherSchemaVersion = 2
+    private static let launcherRuntimeVersion = 2
 
     private let iconService = GroupIconService()
     private let launcherRuntimeExecutableURL: URL?
+    private let appBundleURL: URL
     private let customDefaultDestinationDirectory: URL?
+    private let launcherAppLifecycleManager: LauncherAppLifecycleManaging
 
     init(
         launcherRuntimeExecutableURL: URL? = LauncherRuntimeLocator.defaultRuntimeExecutableURL(),
-        defaultDestinationDirectory: URL? = nil
+        appBundleURL: URL = Bundle.main.bundleURL,
+        defaultDestinationDirectory: URL? = nil,
+        launcherAppLifecycleManager: LauncherAppLifecycleManaging = NSWorkspaceLauncherAppLifecycleManager()
     ) {
         self.launcherRuntimeExecutableURL = launcherRuntimeExecutableURL
+        self.appBundleURL = appBundleURL
         self.customDefaultDestinationDirectory = defaultDestinationDirectory
+        self.launcherAppLifecycleManager = launcherAppLifecycleManager
     }
 
-    func generateLauncher(for group: AppGroup, destinationDirectory: URL? = nil) throws -> LauncherGenerationResult {
+    func generateLauncher(
+        for group: AppGroup,
+        showsGatherTabWindow: Bool = false,
+        destinationDirectory: URL? = nil
+    ) throws -> LauncherGenerationResult {
         let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
         try FileManager.default.createDirectory(at: appURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
@@ -46,7 +65,9 @@ struct LauncherAppGeneratorService {
             executableName: executableName,
             iconFileBaseName: iconFileBaseName,
             bundleIdentifier: bundleIdentifier,
-            groupID: group.id
+            groupID: group.id,
+            appBundleURL: appBundleURL,
+            showsGatherTabWindow: showsGatherTabWindow
         )
         try writeIcon(
             for: group,
@@ -66,6 +87,40 @@ struct LauncherAppGeneratorService {
         let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
         guard FileManager.default.fileExists(atPath: appURL.path) else { return }
         try FileManager.default.removeItem(at: appURL)
+    }
+
+    func regenerateLauncherIfStale(
+        for group: AppGroup,
+        destinationDirectory: URL? = nil
+    ) throws -> Bool {
+        let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
+        guard FileManager.default.fileExists(atPath: appURL.path) else {
+            return false
+        }
+
+        guard try launcherIsStale(appURL: appURL, group: group) else {
+            return false
+        }
+
+        let bundleIdentifier = bundleIdentifier(for: group)
+        let wasRunning = launcherAppLifecycleManager.isLauncherRunning(bundleIdentifier: bundleIdentifier)
+        if wasRunning {
+            let terminated = launcherAppLifecycleManager.terminateLauncher(bundleIdentifier: bundleIdentifier)
+            if !terminated {
+                launcherAppLifecycleManager.forceTerminateLauncher(bundleIdentifier: bundleIdentifier)
+            }
+        }
+
+        _ = try generateLauncher(
+            for: group,
+            showsGatherTabWindow: group.launcherShowsGatherTabWindow,
+            destinationDirectory: destinationDirectory
+        )
+
+        if wasRunning {
+            launcherAppLifecycleManager.launchLauncher(at: appURL)
+        }
+        return true
     }
 
     func defaultDestinationDirectory() throws -> URL {
@@ -97,6 +152,9 @@ struct LauncherAppGeneratorService {
             throw CocoaError(.fileNoSuchFile)
         }
 
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
         try FileManager.default.copyItem(at: launcherRuntimeExecutableURL, to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
@@ -107,7 +165,9 @@ struct LauncherAppGeneratorService {
         executableName: String,
         iconFileBaseName: String,
         bundleIdentifier: String,
-        groupID: UUID
+        groupID: UUID,
+        appBundleURL: URL,
+        showsGatherTabWindow: Bool
     ) throws {
         let info: [String: Any] = [
             "CFBundleDevelopmentRegion": "en",
@@ -120,13 +180,56 @@ struct LauncherAppGeneratorService {
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
+            "GatherTabApplicationPath": appBundleURL.path,
             "GatherTabGroupID": groupID.uuidString,
-            "GatherTabShowsGatherTabWindow": false,
+            "GatherTabLauncherRuntimeVersion": Self.launcherRuntimeVersion,
+            "GatherTabLauncherSchemaVersion": Self.launcherSchemaVersion,
+            "GatherTabShowsGatherTabWindow": showsGatherTabWindow,
             "LSMinimumSystemVersion": "14.0"
         ]
 
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: url, options: .atomic)
+    }
+
+    private func launcherIsStale(appURL: URL, group: AppGroup) throws -> Bool {
+        let infoPlistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        guard
+            let infoData = try? Data(contentsOf: infoPlistURL),
+            let info = try? PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        else {
+            return true
+        }
+
+        guard info["GatherTabLauncherSchemaVersion"] as? Int == Self.launcherSchemaVersion else {
+            return true
+        }
+        guard info["GatherTabLauncherRuntimeVersion"] as? Int == Self.launcherRuntimeVersion else {
+            return true
+        }
+        guard info["GatherTabApplicationPath"] as? String == appBundleURL.path else {
+            return true
+        }
+        guard info["GatherTabShowsGatherTabWindow"] as? Bool == group.launcherShowsGatherTabWindow else {
+            return true
+        }
+
+        return try launcherRuntimeDiffers(from: appURL)
+    }
+
+    private func launcherRuntimeDiffers(from appURL: URL) throws -> Bool {
+        guard let launcherRuntimeExecutableURL else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let generatedExecutableURL = appURL
+            .appendingPathComponent("Contents/MacOS", isDirectory: true)
+            .appendingPathComponent(Self.launcherExecutableName)
+        guard FileManager.default.fileExists(atPath: generatedExecutableURL.path) else {
+            return true
+        }
+
+        return try Data(contentsOf: generatedExecutableURL) != Data(contentsOf: launcherRuntimeExecutableURL)
     }
 
     private func writeIcon(for group: AppGroup, to outputURL: URL) throws {
@@ -220,5 +323,42 @@ private enum LauncherRuntimeLocator {
         bundle.resourceURL?
             .appendingPathComponent("LauncherRuntime", isDirectory: true)
             .appendingPathComponent("GatherTabLauncherRuntime")
+    }
+}
+
+private final class NSWorkspaceLauncherAppLifecycleManager: LauncherAppLifecycleManaging {
+    func isLauncherRunning(bundleIdentifier: String) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+    }
+
+    func terminateLauncher(bundleIdentifier: String) -> Bool {
+        let applications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        guard !applications.isEmpty else { return true }
+
+        applications.forEach { $0.terminate() }
+        return waitForTermination(of: applications, timeout: 2)
+    }
+
+    func forceTerminateLauncher(bundleIdentifier: String) {
+        let applications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        applications.forEach { $0.forceTerminate() }
+        _ = waitForTermination(of: applications, timeout: 2)
+    }
+
+    func launchLauncher(at appURL: URL) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+    }
+
+    private func waitForTermination(
+        of applications: [NSRunningApplication],
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while applications.contains(where: { !$0.isTerminated }) && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+
+        return applications.allSatisfy(\.isTerminated)
     }
 }

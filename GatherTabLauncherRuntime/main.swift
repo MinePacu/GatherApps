@@ -36,6 +36,20 @@ private final class LauncherAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard let url = components.url else { return }
+
+        if
+            let appPath = Bundle.main.object(forInfoDictionaryKey: "GatherTabApplicationPath") as? String,
+            FileManager.default.fileExists(atPath: appPath)
+        {
+            let configuration = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: URL(fileURLWithPath: appPath),
+                configuration: configuration
+            )
+            return
+        }
+
         NSWorkspace.shared.open(url)
     }
 }
