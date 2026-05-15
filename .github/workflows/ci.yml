@@ -48,7 +48,7 @@ jobs:
             -project GatherApps.xcodeproj \
             -scheme GatherApps \
             -configuration Debug \
-            -destination 'platform=macOS' \
+            -destination 'platform=macOS,arch=x86_64' \
             -parallel-testing-enabled NO \
             -derivedDataPath DerivedData \
             MACOSX_DEPLOYMENT_TARGET=26.0 \
