@@ -1,0 +1,88 @@
+# GatherApps CI/CD Pipeline
+# Requires a macOS runner with Xcode 15+ available.
+# On GitLab.com, macOS SaaS runners require a Premium/Ultimate subscription.
+# If you are on the Free tier, register a self-hosted macOS runner and update
+# the `tags` values below to match your runner's tags.
+
+stages:
+  - build
+  - test
+
+# ── Shared defaults ──────────────────────────────────────────────
+default:
+  # macOS 14 runner with Xcode 15 pre-installed (GitLab.com SaaS tag).
+  # Replace with your own runner tag if self-hosting.
+  tags:
+    - saas-macos-medium-m1
+
+# ── Derived-data cache ────────────────────────────────────────────────
+# Caching DerivedData avoids recompiling unchanged modules on every run,
+# which can cut build times significantly for a project of this size.
+.xcode-cache:
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-xcode-derived-data"
+    paths:
+      - DerivedData/
+    policy: pull-push
+
+# ── Rules ───────────────────────────────────────────────────────────────
+# Run on every push to any branch and on merge request pipelines.
+.rules-default:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ── Build ───────────────────────────────────────────────────────────────────
+build:
+  extends:
+    - .xcode-cache
+    - .rules-default
+  stage: build
+  # Build without code signing — certificates are not available in CI.
+  # CODE_SIGNING_REQUIRED=NO and CODE_SIGN_IDENTITY="" disable signing entirely.
+  script:
+    - xcodebuild build
+        -project GatherApps.xcodeproj
+        -scheme GatherApps
+        -configuration Debug
+        -derivedDataPath DerivedData
+        CODE_SIGN_IDENTITY=""
+        CODE_SIGNING_REQUIRED=NO
+        CODE_SIGNING_ALLOWED=NO
+        | xcpretty || true
+  artifacts:
+    # Retain the build products so the test job can reuse them.
+    paths:
+      - DerivedData/Build/Products/
+    expire_in: 1 hour
+
+# ── Unit Tests ────────────────────────────────────────────────────────────────
+unit-test:
+  extends:
+    - .xcode-cache
+    - .rules-default
+  stage: test
+  # Reuse build products from the build job — no need to recompile.
+  needs:
+    - job: build
+      artifacts: true
+  # dependencies: [] is intentional — artifacts are already pulled via `needs`.
+  dependencies: []
+  script:
+    - xcodebuild test
+        -project GatherApps.xcodeproj
+        -scheme GatherApps
+        -configuration Debug
+        -derivedDataPath DerivedData
+        -resultBundlePath TestResults/GatherAppsTests.xcresult
+        -only-testing:GatherAppsTests
+        CODE_SIGN_IDENTITY=""
+        CODE_SIGNING_REQUIRED=NO
+        CODE_SIGNING_ALLOWED=NO
+        | xcpretty || true
+  artifacts:
+    # Preserve the .xcresult bundle for review in GitLab or Xcode.
+    when: always
+    paths:
+      - TestResults/
+    expire_in: 7 days
