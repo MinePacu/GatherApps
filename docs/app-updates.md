@@ -4,17 +4,24 @@ GatherApps uses Sparkle for non-App-Store macOS updates. The app exposes a
 Check for Updates command and delegates download, signature verification, user
 prompts, installation, and relaunch behavior to Sparkle.
 
-## Appcast
+## Appcast Feeds
 
-The app reads its default appcast from:
+The app checks GitLab first:
+
+```text
+https://gitlab.com/MinePacu/GatherApps/-/releases/permalink/latest/downloads/appcast.xml
+```
+
+If that feed cannot be loaded, the app falls back to GitHub:
 
 ```text
 https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml
 ```
 
-Release automation should attach a generated `appcast.xml` to the GitHub
-release. If the feed location changes, update `SUFeedURL` in
-`GatherApps/Info.plist`.
+Release automation should publish the same generated `appcast.xml` to both
+release locations while the project supports both hosts. If the primary feed
+location changes, update `SUFeedURL` in `GatherApps/Info.plist` and the feed
+list in `SparkleUpdateService`.
 
 ## Signing Requirements
 
@@ -30,7 +37,7 @@ Release checklist:
 3. Generate the Sparkle signature for the release archive.
 4. Generate or update `appcast.xml` with the release version, build number,
    release notes, download URL, and signature.
-5. Attach the archive and `appcast.xml` to the GitHub release.
+5. Attach the archive and `appcast.xml` to the GitLab and GitHub releases.
 6. Install the previous public release, run Check for Updates, complete the
    update, then verify existing groups and generated launcher apps still work.
 

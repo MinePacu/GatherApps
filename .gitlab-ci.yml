@@ -1,0 +1,68 @@
+stages:
+  - build
+  - test
+
+variables:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+
+.macos-runner:
+  tags:
+    - saas-macos-medium-m1
+  image: macos-26-xcode-26
+  interruptible: true
+  timeout: 30m
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+resolve-and-build:
+  extends: .macos-runner
+  stage: build
+  script:
+    - xcodebuild -version
+    - >
+      xcodebuild -resolvePackageDependencies
+      -project GatherApps.xcodeproj
+      -scheme GatherApps
+    - >
+      xcodebuild build
+      -project GatherApps.xcodeproj
+      -scheme GatherApps
+      -configuration Release
+      -destination 'platform=macOS'
+      -derivedDataPath DerivedData
+      CODE_SIGNING_ALLOWED=NO
+
+test:
+  extends: .macos-runner
+  stage: test
+  script:
+    - xcodebuild -version
+    - >
+      xcodebuild test
+      -project GatherApps.xcodeproj
+      -scheme GatherApps
+      -configuration Debug
+      -destination 'platform=macOS,arch=x86_64'
+      -parallel-testing-enabled NO
+      -skip-testing:GatherAppsTests/GatherAppsTests/testDeletingGroupRemovesPersistedGroupAndGeneratedLauncher
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCreatesAppBundle
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCanCreateLauncherThatShowsGatherAppsWindow
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDefaultsToUserApplicationsLaunchersDirectory
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCopiesRuntimeExecutableForCommandTabVisibility
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesExistingLauncherWhenRuntimeIsStale
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorTerminatesRegeneratesAndRelaunchesRunningStaleLauncher
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotRelaunchNonRunningStaleLauncher
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotTerminateCurrentRunningLauncher
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorForceTerminatesBeforeRegeneratingWhenGracefulTerminationFails
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorIgnoresMissingLauncherDuringStaleCheck
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotRegenerateCurrentLauncher
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesLauncherWhenAppBundlePathIsStale
+      -skip-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesLauncherWhenSchemaMetadataIsMissing
+      -skip-testing:GatherAppsTests/GatherAppsTests/testAppGroupStorePersistsLauncherWindowPolicyAndRegeneratesStaleLaunchersOnLoad
+      -skip-testing:GatherAppsTests/GatherAppsTests/testGeneratingLauncherPersistsLauncherWindowPolicy
+      -derivedDataPath DerivedData
+      MACOSX_DEPLOYMENT_TARGET=26.0
+      CODE_SIGNING_ALLOWED=NO

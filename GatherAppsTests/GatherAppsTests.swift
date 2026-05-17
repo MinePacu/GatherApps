@@ -109,6 +109,46 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertTrue(group.launcherShowsGatherAppsWindow)
     }
 
+    func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() throws {
+        let groupID = UUID()
+        let group = AppGroup(
+            id: groupID,
+            name: "Ordered",
+            apps: [
+                GroupedApp(bundleIdentifier: "com.example.First", name: "First", appPath: nil),
+                GroupedApp(bundleIdentifier: "com.example.Second", name: "Second", appPath: nil),
+                GroupedApp(bundleIdentifier: "com.example.Third", name: "Third", appPath: nil)
+            ],
+            iconFileName: "existing-icon.icns"
+        )
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsActivationOrderTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode([group]).write(to: groupsFileURL, options: .atomic)
+        let activationService = StubAppActivationService()
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            activationService: activationService
+        )
+
+        store.activate(groupID: groupID)
+
+        XCTAssertEqual(activationService.requestedBundleIdentifiers, [
+            "com.example.Third",
+            "com.example.Second",
+            "com.example.First"
+        ])
+        XCTAssertEqual(store.lastActivationResults, [
+            .success(appName: "com.example.First"),
+            .success(appName: "com.example.Second"),
+            .success(appName: "com.example.Third")
+        ])
+    }
+
     func testUpdateVersionComparisonDetectsNewerSemanticVersion() {
         XCTAssertTrue(UpdateVersion("1.2.0").isNewer(than: UpdateVersion("1.1.9")))
         XCTAssertTrue(UpdateVersion("2.0").isNewer(than: UpdateVersion("1.9.9")))
@@ -137,6 +177,36 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(metadata.shortVersion, "1.2.0")
         XCTAssertEqual(metadata.buildVersion, "42")
         XCTAssertEqual(metadata.releaseNotesHTML, "<p>Improved launcher refresh.</p>")
+    }
+
+    func testAppcastFeedProviderUsesGitLabBeforeGitHubFallback() {
+        var provider = AppcastFeedProvider()
+
+        XCTAssertEqual(
+            provider.currentFeedURL?.absoluteString,
+            "https://gitlab.com/MinePacu/GatherApps/-/releases/permalink/latest/downloads/appcast.xml"
+        )
+
+        XCTAssertTrue(provider.advanceToFallbackFeed())
+        XCTAssertEqual(
+            provider.currentFeedURL?.absoluteString,
+            "https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml"
+        )
+        XCTAssertFalse(provider.advanceToFallbackFeed())
+    }
+
+    func testGitLabCIAddsMacOSBuildAndTestPipeline() throws {
+        let projectRootURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let gitLabCIURL = projectRootURL.appendingPathComponent(".gitlab-ci.yml")
+        let gitLabCI = try String(contentsOf: gitLabCIURL, encoding: .utf8)
+
+        XCTAssertTrue(gitLabCI.contains("image: macos-26-xcode-26"))
+        XCTAssertTrue(gitLabCI.contains("saas-macos-medium-m1"))
+        XCTAssertTrue(gitLabCI.contains("xcodebuild build"))
+        XCTAssertTrue(gitLabCI.contains("xcodebuild test"))
+        XCTAssertTrue(gitLabCI.contains("CODE_SIGNING_ALLOWED=NO"))
     }
 
     func testWindowHelperIdentifierUsesMainAppBundlePrefix() {
@@ -1055,5 +1125,14 @@ private final class StubWindowHelperClient: WindowHelperClient {
     func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
         requestedBundleIdentifiers.append(bundleIdentifier)
         return result
+    }
+}
+
+private final class StubAppActivationService: AppActivationProviding {
+    private(set) var requestedBundleIdentifiers: [String] = []
+
+    func activate(bundleIdentifier: String) -> ActivationResult {
+        requestedBundleIdentifiers.append(bundleIdentifier)
+        return .success(appName: bundleIdentifier)
     }
 }

@@ -14,6 +14,10 @@ protocol ApplicationProviding {
     func runningApplication(bundleIdentifier: String) -> ActivatableApplication?
 }
 
+protocol AppActivationProviding {
+    func activate(bundleIdentifier: String) -> ActivationResult
+}
+
 enum WindowHelperActivationResult: Equatable {
     case raised(appName: String, raisedWindowCount: Int)
     case appNotRunning(bundleIdentifier: String)
@@ -41,7 +45,7 @@ enum WindowHelperConfiguration {
     static let notificationNamespace = loginItemIdentifier
 }
 
-struct AppActivationService {
+struct AppActivationService: AppActivationProviding {
     private let applicationProvider: ApplicationProviding
     private let helperRegistrationService: WindowHelperRegistrationProviding
     private let helperClient: WindowHelperClient

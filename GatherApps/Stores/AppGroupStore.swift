@@ -10,14 +10,16 @@ final class AppGroupStore: ObservableObject {
 
     private let groupsFileURL: URL?
     private let iconService = GroupIconService()
-    private let activationService = AppActivationService()
+    private let activationService: AppActivationProviding
     private let launcherGeneratorService: LauncherAppGeneratorService
 
     init(
         groupsFileURL: URL? = nil,
+        activationService: AppActivationProviding = AppActivationService(),
         launcherGeneratorService: LauncherAppGeneratorService? = nil
     ) {
         self.groupsFileURL = groupsFileURL
+        self.activationService = activationService
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
         regenerateMissingIcons()
@@ -82,8 +84,16 @@ final class AppGroupStore: ObservableObject {
 
     func activate(groupID: AppGroup.ID) {
         guard let group = groups.first(where: { $0.id == groupID }) else { return }
-        lastActivationResults = group.apps.map {
-            activationService.activate(bundleIdentifier: $0.bundleIdentifier)
+        var resultsByBundleIdentifier: [String: ActivationResult] = [:]
+
+        for app in Self.frontmostActivationOrder(for: group) {
+            resultsByBundleIdentifier[app.bundleIdentifier] = activationService.activate(
+                bundleIdentifier: app.bundleIdentifier
+            )
+        }
+
+        lastActivationResults = group.apps.compactMap {
+            resultsByBundleIdentifier[$0.bundleIdentifier]
         }
     }
 
@@ -220,5 +230,10 @@ final class AppGroupStore: ObservableObject {
         }
 
         try? FileManager.default.removeItem(at: iconURL)
+    }
+
+    private static func frontmostActivationOrder(for group: AppGroup) -> [GroupedApp] {
+        // Later macOS activation requests are brought farther forward, so request back-to-front.
+        Array(group.apps.reversed())
     }
 }

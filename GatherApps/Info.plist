@@ -16,7 +16,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml</string>
+	<string>https://gitlab.com/MinePacu/GatherApps/-/releases/permalink/latest/downloads/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>Wkte2Eh6d2Q48fygJejN/y4Qr5g8s0gG8tnxO2to3K4=</string>
 </dict>
