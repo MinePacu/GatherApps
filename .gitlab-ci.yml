@@ -2,7 +2,7 @@
 # Requires a macOS runner with Xcode 15+ available.
 # On GitLab.com, macOS SaaS runners require a Premium/Ultimate subscription.
 # If you are on the Free tier, register a self-hosted macOS runner and update
-# the `tags` values below to match your runner's tags.
+# the `tags` and `image` values below to match your runner's configuration.
 
 stages:
   - build
@@ -10,10 +10,17 @@ stages:
 
 # ── Shared defaults ──────────────────────────────────────────────
 default:
-  # macOS 14 runner with Xcode 15 pre-installed (GitLab.com SaaS tag).
-  # Replace with your own runner tag if self-hosting.
+  # macOS 15 runner with Xcode 16 pre-installed (GitLab.com SaaS — GA image).
+  # Replace tag and image if self-hosting.
   tags:
     - saas-macos-medium-m1
+  image: macos-15-xcode-16
+  before_script:
+    # Prevent Homebrew from auto-updating on every job (saves ~1–2 min).
+    - export HOMEBREW_NO_AUTO_UPDATE=1
+    # xcpretty is not pre-installed on GitLab macOS runners; install it here.
+    # It formats xcodebuild output into a readable log.
+    - gem install xcpretty --no-document --quiet
 
 # ── Derived-data cache ────────────────────────────────────────────────
 # Caching DerivedData avoids recompiling unchanged modules on every run,
@@ -41,6 +48,9 @@ build:
   # Build without code signing — certificates are not available in CI.
   # CODE_SIGNING_REQUIRED=NO and CODE_SIGN_IDENTITY="" disable signing entirely.
   script:
+    # Pipe through xcpretty for readable output; use set -o pipefail so that
+    # a non-zero xcodebuild exit code is not masked by xcpretty's success.
+    - set -o pipefail
     - xcodebuild build
         -project GatherApps.xcodeproj
         -scheme GatherApps
@@ -49,7 +59,7 @@ build:
         CODE_SIGN_IDENTITY=""
         CODE_SIGNING_REQUIRED=NO
         CODE_SIGNING_ALLOWED=NO
-        | xcpretty || true
+        | xcpretty
   artifacts:
     # Retain the build products so the test job can reuse them.
     paths:
@@ -69,6 +79,9 @@ unit-test:
   # dependencies: [] is intentional — artifacts are already pulled via `needs`.
   dependencies: []
   script:
+    # Pipe through xcpretty for readable output; use set -o pipefail so that
+    # a non-zero xcodebuild exit code is not masked by xcpretty's success.
+    - set -o pipefail
     - xcodebuild test
         -project GatherApps.xcodeproj
         -scheme GatherApps
@@ -79,7 +92,7 @@ unit-test:
         CODE_SIGN_IDENTITY=""
         CODE_SIGNING_REQUIRED=NO
         CODE_SIGNING_ALLOWED=NO
-        | xcpretty || true
+        | xcpretty
   artifacts:
     # Preserve the .xcresult bundle for review in GitLab or Xcode.
     when: always
