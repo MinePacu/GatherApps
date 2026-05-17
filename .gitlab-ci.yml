@@ -7,9 +7,10 @@ variables:
   HOMEBREW_NO_AUTO_UPDATE: "1"
 
 .macos-runner:
+  # Use a self-hosted macOS runner tagged `mac`.
+  # Free-tier GitLab projects cannot rely on SaaS macOS hosted runners.
   tags:
-    - saas-macos-medium-m1
-  image: macos-26-xcode-26
+    - mac
   interruptible: true
   timeout: 30m
   rules:

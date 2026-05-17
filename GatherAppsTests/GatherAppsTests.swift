@@ -202,8 +202,10 @@ final class GatherAppsTests: XCTestCase {
         let gitLabCIURL = projectRootURL.appendingPathComponent(".gitlab-ci.yml")
         let gitLabCI = try String(contentsOf: gitLabCIURL, encoding: .utf8)
 
-        XCTAssertTrue(gitLabCI.contains("image: macos-26-xcode-26"))
-        XCTAssertTrue(gitLabCI.contains("saas-macos-medium-m1"))
+        XCTAssertTrue(gitLabCI.contains("- mac"))
+        XCTAssertTrue(gitLabCI.contains("self-hosted macOS runner"))
+        XCTAssertFalse(gitLabCI.contains("saas-macos-medium-m1"))
+        XCTAssertFalse(gitLabCI.contains("image: macos-26-xcode-26"))
         XCTAssertTrue(gitLabCI.contains("xcodebuild build"))
         XCTAssertTrue(gitLabCI.contains("xcodebuild test"))
         XCTAssertTrue(gitLabCI.contains("CODE_SIGNING_ALLOWED=NO"))
