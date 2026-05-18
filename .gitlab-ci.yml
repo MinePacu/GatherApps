@@ -34,6 +34,13 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
 
+# SAST and Secret Detection are kept at the templates' default scope.
+# We don't override their `rules:` here -- the parent `sast` job in the
+# included template is an abstract config-only job (`when: never` + `exit 1`)
+# and overriding its rules causes it to actually execute and fail.
+# The pipeline-wide `workflow.rules` above already restricts every pipeline
+# to MR + main + develop + tags, so additional ref filtering on these jobs
+# would be a no-op.
 sast:
   stage: security
 
@@ -52,8 +59,9 @@ code-quality:
     - exit ${SWIFTLINT_STATUS:-0}
   artifacts:
     when: always
+    # Only the Code Quality report is consumed by GitLab; the raw swiftlint.json
+    # is redundant and was dropped to reduce artifact storage.
     paths:
-      - CodeQuality/swiftlint.json
       - CodeQuality/gl-code-quality-report.json
     reports:
       codequality: CodeQuality/gl-code-quality-report.json
@@ -62,12 +70,23 @@ code-quality:
 resolve-and-build:
   extends: .macos-runner
   stage: build
+  # Cache Swift Package Manager checkouts across pipelines so MR branches
+  # don't re-download dependencies every run. Stored on the self-hosted
+  # macOS runner's local disk -- this does not consume GitLab.com cache
+  # storage quota. New branches fall back to the default branch's cache.
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-spm"
+    fallback_keys:
+      - "$CI_DEFAULT_BRANCH-spm"
+    paths:
+      - DerivedData/SourcePackages/
   script:
     - xcodebuild -version
     - >
       xcodebuild -resolvePackageDependencies
       -project GatherApps.xcodeproj
       -scheme GatherApps
+      -derivedDataPath DerivedData
     - >
       xcodebuild build
       -project GatherApps.xcodeproj
