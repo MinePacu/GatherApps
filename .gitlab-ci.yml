@@ -34,23 +34,18 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
 
-# Narrow SAST/Secret Detection to the same refs as the rest of the pipeline.
-# The included templates default to running on every branch; restricting to
-# MR + main + develop avoids spinning up analyzer containers on throwaway
-# branches and keeps Free-tier CI minutes usage predictable.
+# SAST and Secret Detection are kept at the templates' default scope.
+# We don't override their `rules:` here -- the parent `sast` job in the
+# included template is an abstract config-only job (`when: never` + `exit 1`)
+# and overriding its rules causes it to actually execute and fail.
+# The pipeline-wide `workflow.rules` above already restricts every pipeline
+# to MR + main + develop + tags, so additional ref filtering on these jobs
+# would be a no-op.
 sast:
   stage: security
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 secret_detection:
   stage: security
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 code-quality:
   extends: .macos-runner
