@@ -1,10 +1,26 @@
 stages:
+  - quality
   - build
   - test
+  - security
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
 
 variables:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: "1"
+  AST_ENABLE_MR_PIPELINES: "true"
+  SAST_EXCLUDED_PATHS: "DerivedData,TestResults,GatherApps.xcodeproj/xcuserdata"
+  SECRET_DETECTION_EXCLUDED_PATHS: "DerivedData,TestResults,GatherApps.xcodeproj/xcuserdata"
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_TAG'
 
 .macos-runner:
   # Use a self-hosted macOS runner tagged `macos`.
@@ -17,6 +33,31 @@ variables:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
+
+sast:
+  stage: security
+
+secret_detection:
+  stage: security
+
+code-quality:
+  extends: .macos-runner
+  stage: quality
+  allow_failure: true
+  script:
+    - mkdir -p CodeQuality
+    - if ! command -v swiftlint >/dev/null; then brew install swiftlint; fi
+    - swiftlint lint --reporter json > CodeQuality/swiftlint.json || SWIFTLINT_STATUS=$?
+    - ruby ci/swiftlint-codequality.rb CodeQuality/swiftlint.json CodeQuality/gl-code-quality-report.json
+    - exit ${SWIFTLINT_STATUS:-0}
+  artifacts:
+    when: always
+    paths:
+      - CodeQuality/swiftlint.json
+      - CodeQuality/gl-code-quality-report.json
+    reports:
+      codequality: CodeQuality/gl-code-quality-report.json
+    expire_in: 1 week
 
 resolve-and-build:
   extends: .macos-runner
@@ -39,8 +80,13 @@ resolve-and-build:
 test:
   extends: .macos-runner
   stage: test
+  needs:
+    - resolve-and-build
   script:
     - xcodebuild -version
+    - mkdir -p TestResults TestReports
+    - if ! command -v xcpretty >/dev/null; then gem install xcpretty --no-document; fi
+    - set -o pipefail
     - >
       xcodebuild test
       -project GatherApps.xcodeproj
@@ -65,5 +111,63 @@ test:
       -skip-testing:GatherAppsTests/GatherAppsTests/testAppGroupStorePersistsLauncherWindowPolicyAndRegeneratesStaleLaunchersOnLoad
       -skip-testing:GatherAppsTests/GatherAppsTests/testGeneratingLauncherPersistsLauncherWindowPolicy
       -derivedDataPath DerivedData
+      -resultBundlePath TestResults/GatherAppsTests.xcresult
       MACOSX_DEPLOYMENT_TARGET=26.0
       CODE_SIGNING_ALLOWED=NO
+      | xcpretty --report junit --output TestReports/junit.xml
+  artifacts:
+    when: always
+    paths:
+      - TestResults/
+      - TestReports/
+    reports:
+      junit: TestReports/junit.xml
+    expire_in: 1 week
+
+launcher-integration-test:
+  extends: .macos-runner
+  stage: test
+  needs:
+    - resolve-and-build
+  allow_failure: true
+  script:
+    - xcodebuild -version
+    - mkdir -p TestResults TestReports
+    - if ! command -v xcpretty >/dev/null; then gem install xcpretty --no-document; fi
+    - set -o pipefail
+    - >
+      xcodebuild test
+      -project GatherApps.xcodeproj
+      -scheme GatherApps
+      -configuration Debug
+      -destination 'platform=macOS,arch=x86_64'
+      -parallel-testing-enabled NO
+      -only-testing:GatherAppsTests/GatherAppsTests/testDeletingGroupRemovesPersistedGroupAndGeneratedLauncher
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCreatesAppBundle
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCanCreateLauncherThatShowsGatherAppsWindow
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDefaultsToUserApplicationsLaunchersDirectory
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorCopiesRuntimeExecutableForCommandTabVisibility
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesExistingLauncherWhenRuntimeIsStale
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorTerminatesRegeneratesAndRelaunchesRunningStaleLauncher
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotRelaunchNonRunningStaleLauncher
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotTerminateCurrentRunningLauncher
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorForceTerminatesBeforeRegeneratingWhenGracefulTerminationFails
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorIgnoresMissingLauncherDuringStaleCheck
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorDoesNotRegenerateCurrentLauncher
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesLauncherWhenAppBundlePathIsStale
+      -only-testing:GatherAppsTests/GatherAppsTests/testLauncherGeneratorRegeneratesLauncherWhenSchemaMetadataIsMissing
+      -only-testing:GatherAppsTests/GatherAppsTests/testAppGroupStorePersistsLauncherWindowPolicyAndRegeneratesStaleLaunchersOnLoad
+      -only-testing:GatherAppsTests/GatherAppsTests/testGeneratingLauncherPersistsLauncherWindowPolicy
+      -derivedDataPath DerivedData
+      -resultBundlePath TestResults/GatherAppsLauncherIntegrationTests.xcresult
+      MACOSX_DEPLOYMENT_TARGET=26.0
+      CODE_SIGNING_ALLOWED=NO
+      | xcpretty --report junit --output TestReports/launcher-junit.xml
+  artifacts:
+    when: always
+    paths:
+      - TestResults/
+      - TestReports/
+    reports:
+      junit: TestReports/launcher-junit.xml
+    expire_in: 1 week

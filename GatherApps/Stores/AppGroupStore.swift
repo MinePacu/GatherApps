@@ -15,11 +15,11 @@ final class AppGroupStore: ObservableObject {
 
     init(
         groupsFileURL: URL? = nil,
-        activationService: AppActivationProviding = AppActivationService(),
+        activationService: AppActivationProviding? = nil,
         launcherGeneratorService: LauncherAppGeneratorService? = nil
     ) {
         self.groupsFileURL = groupsFileURL
-        self.activationService = activationService
+        self.activationService = activationService ?? AppActivationService()
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
         regenerateMissingIcons()

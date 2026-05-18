@@ -202,6 +202,8 @@ final class GatherAppsTests: XCTestCase {
         let gitLabCIURL = projectRootURL.appendingPathComponent(".gitlab-ci.yml")
         let gitLabCI = try String(contentsOf: gitLabCIURL, encoding: .utf8)
 
+        XCTAssertTrue(gitLabCI.contains("workflow:"))
+        XCTAssertTrue(gitLabCI.contains("$CI_PIPELINE_SOURCE == \"merge_request_event\""))
         XCTAssertTrue(gitLabCI.contains("- macos"))
         XCTAssertFalse(gitLabCI.contains("- mac\n"))
         XCTAssertTrue(gitLabCI.contains("self-hosted macOS runner"))
@@ -210,6 +212,16 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertTrue(gitLabCI.contains("xcodebuild build"))
         XCTAssertTrue(gitLabCI.contains("xcodebuild test"))
         XCTAssertTrue(gitLabCI.contains("CODE_SIGNING_ALLOWED=NO"))
+        XCTAssertTrue(gitLabCI.contains("reports:"))
+        XCTAssertTrue(gitLabCI.contains("junit: TestReports/junit.xml"))
+        XCTAssertTrue(gitLabCI.contains("launcher-integration-test:"))
+        XCTAssertTrue(gitLabCI.contains("allow_failure: true"))
+        XCTAssertTrue(gitLabCI.contains("codequality: CodeQuality/gl-code-quality-report.json"))
+        XCTAssertTrue(gitLabCI.contains("template: Jobs/SAST.gitlab-ci.yml"))
+        XCTAssertTrue(gitLabCI.contains("template: Jobs/Secret-Detection.gitlab-ci.yml"))
+        XCTAssertTrue(gitLabCI.contains("sast:\n  stage: security"))
+        XCTAssertTrue(gitLabCI.contains("secret_detection:\n  stage: security"))
+        XCTAssertTrue(gitLabCI.contains("AST_ENABLE_MR_PIPELINES: \"true\""))
     }
 
     func testWindowHelperIdentifierUsesMainAppBundlePrefix() {
@@ -242,6 +254,71 @@ final class GatherAppsTests: XCTestCase {
             duplicateBundleID,
             "com.apple.TextEdit"
         ])
+    }
+
+    func testStatusBarMenuModelDisablesEmptyGroupsAndShowsRunningCounts() {
+        let groups = [
+            AppGroup(
+                name: "Writing",
+                apps: [
+                    GroupedApp(bundleIdentifier: "com.apple.TextEdit", name: "TextEdit", appPath: nil),
+                    GroupedApp(bundleIdentifier: "com.apple.Notes", name: "Notes", appPath: nil)
+                ]
+            ),
+            AppGroup(name: "Empty")
+        ]
+
+        let items = StatusBarMenuModel.groupItems(
+            for: groups,
+            runningBundleIdentifiers: ["com.apple.TextEdit"]
+        )
+
+        XCTAssertEqual(items.map(\.title), ["Activate Writing", "Activate Empty"])
+        XCTAssertEqual(items.map(\.runningCountTitle), ["1/2 running", "0/0 running"])
+        XCTAssertEqual(items.map(\.isEnabled), [true, false])
+    }
+
+    func testCoordinatorRoutesSharedActionsThroughStoreAndSwitcher() throws {
+        let groupID = UUID()
+        let group = AppGroup(
+            id: groupID,
+            name: "Design",
+            apps: [
+                GroupedApp(bundleIdentifier: "com.example.Design", name: "Design", appPath: nil)
+            ],
+            iconFileName: "existing-icon.icns"
+        )
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsCoordinatorTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode([group]).write(to: groupsFileURL, options: .atomic)
+        let activationService = StubAppActivationService()
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            activationService: activationService
+        )
+        var didShowSwitcher = false
+        var didShowMainWindow = false
+        let coordinator = GatherAppsAppCoordinator(
+            store: store,
+            showSwitcherAction: { _ in didShowSwitcher = true },
+            activateAppAction: {}
+        )
+        coordinator.showMainWindowAction = {
+            didShowMainWindow = true
+        }
+
+        coordinator.activateGroup(id: groupID)
+        coordinator.showSwitcher()
+        coordinator.showMainWindow()
+
+        XCTAssertEqual(activationService.requestedBundleIdentifiers, ["com.example.Design"])
+        XCTAssertTrue(didShowSwitcher)
+        XCTAssertTrue(didShowMainWindow)
     }
 
     func testGroupIconGenerationUsesNewFileNameForRegeneratedIcon() throws {

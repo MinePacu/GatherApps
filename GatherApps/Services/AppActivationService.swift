@@ -103,7 +103,7 @@ private struct NSWorkspaceApplicationProvider: ApplicationProviding {
     }
 }
 
-private struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProviding {
+struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProviding {
     private let embeddedLauncher = EmbeddedWindowHelperLauncher()
 
     func ensureRegistered() -> WindowHelperRegistrationResult {

@@ -2,10 +2,11 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var store = AppGroupStore()
+    @ObservedObject var store: AppGroupStore
+    let showSwitcher: () -> Void
+    let handleActivationURL: (URL) -> Void
     @State private var selectedGroupID: AppGroup.ID?
     @State private var isShowingCreateGroup = false
-    @State private var switcherWindowController = SwitcherWindowController()
 
     var body: some View {
         NavigationSplitView {
@@ -37,8 +38,7 @@ struct ContentView: View {
 
             ToolbarItem {
                 Button {
-                    // TODO: Wire the future global shortcut service to this same entry point.
-                    switcherWindowController.showSwitcher(store: store)
+                    showSwitcher()
                 } label: {
                     Label("content.openSwitcher", systemImage: "square.grid.2x2")
                 }
@@ -48,7 +48,8 @@ struct ContentView: View {
             selectedGroupID = selectedGroupID ?? store.groups.first?.id
         }
         .onOpenURL { url in
-            if let groupID = store.handleActivationURL(url) {
+            if let groupID = GatherAppsURLScheme.groupID(from: url) {
+                handleActivationURL(url)
                 if GatherAppsURLScheme.showsGatherAppsWindow(from: url) {
                     selectedGroupID = groupID
                 } else {
