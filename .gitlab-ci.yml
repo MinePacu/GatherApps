@@ -85,7 +85,11 @@ test:
   script:
     - xcodebuild -version
     - mkdir -p TestResults TestReports
-    - if ! command -v xcpretty >/dev/null; then gem install xcpretty --no-document; fi
+    # Use the user's gem dir so we don't need write access to system Ruby
+    # (/Library/Ruby/Gems/2.6.0). Prepending PATH first ensures an existing
+    # user-installed xcpretty is discovered without reinstalling.
+    - export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
+    - if ! command -v xcpretty >/dev/null; then gem install --user-install xcpretty --no-document; fi
     - set -o pipefail
     - >
       xcodebuild test
@@ -133,7 +137,11 @@ launcher-integration-test:
   script:
     - xcodebuild -version
     - mkdir -p TestResults TestReports
-    - if ! command -v xcpretty >/dev/null; then gem install xcpretty --no-document; fi
+    # Use the user's gem dir so we don't need write access to system Ruby
+    # (/Library/Ruby/Gems/2.6.0). Prepending PATH first ensures an existing
+    # user-installed xcpretty is discovered without reinstalling.
+    - export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
+    - if ! command -v xcpretty >/dev/null; then gem install --user-install xcpretty --no-document; fi
     - set -o pipefail
     - >
       xcodebuild test
