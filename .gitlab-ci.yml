@@ -34,11 +34,23 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
 
+# Narrow SAST/Secret Detection to the same refs as the rest of the pipeline.
+# The included templates default to running on every branch; restricting to
+# MR + main + develop avoids spinning up analyzer containers on throwaway
+# branches and keeps Free-tier CI minutes usage predictable.
 sast:
   stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 secret_detection:
   stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 code-quality:
   extends: .macos-runner
@@ -52,8 +64,9 @@ code-quality:
     - exit ${SWIFTLINT_STATUS:-0}
   artifacts:
     when: always
+    # Only the Code Quality report is consumed by GitLab; the raw swiftlint.json
+    # is redundant and was dropped to reduce artifact storage.
     paths:
-      - CodeQuality/swiftlint.json
       - CodeQuality/gl-code-quality-report.json
     reports:
       codequality: CodeQuality/gl-code-quality-report.json
@@ -62,12 +75,23 @@ code-quality:
 resolve-and-build:
   extends: .macos-runner
   stage: build
+  # Cache Swift Package Manager checkouts across pipelines so MR branches
+  # don't re-download dependencies every run. Stored on the self-hosted
+  # macOS runner's local disk -- this does not consume GitLab.com cache
+  # storage quota. New branches fall back to the default branch's cache.
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-spm"
+    fallback_keys:
+      - "$CI_DEFAULT_BRANCH-spm"
+    paths:
+      - DerivedData/SourcePackages/
   script:
     - xcodebuild -version
     - >
       xcodebuild -resolvePackageDependencies
       -project GatherApps.xcodeproj
       -scheme GatherApps
+      -derivedDataPath DerivedData
     - >
       xcodebuild build
       -project GatherApps.xcodeproj
