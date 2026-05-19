@@ -28,7 +28,8 @@ private final class LauncherAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let showsGatherAppsWindow = Bundle.main.object(forInfoDictionaryKey: "GatherAppsShowsGatherAppsWindow") as? Bool ?? true
+        let showsGatherAppsWindow = Bundle.main
+            .object(forInfoDictionaryKey: "GatherAppsShowsGatherAppsWindow") as? Bool ?? true
         if !showsGatherAppsWindow {
             components.queryItems = [
                 URLQueryItem(name: "showWindow", value: "false")
@@ -39,8 +40,7 @@ private final class LauncherAppDelegate: NSObject, NSApplicationDelegate {
 
         if
             let appPath = Bundle.main.object(forInfoDictionaryKey: "GatherAppsApplicationPath") as? String,
-            FileManager.default.fileExists(atPath: appPath)
-        {
+            FileManager.default.fileExists(atPath: appPath) {
             let configuration = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.open(
                 [url],

@@ -53,7 +53,7 @@ struct AppActivationService: AppActivationProviding {
     init(
         applicationProvider: ApplicationProviding = NSWorkspaceApplicationProvider(),
         helperRegistrationService: WindowHelperRegistrationProviding = LoginItemWindowHelperRegistrationService(),
-        helperClient: WindowHelperClient = DistributedNotificationWindowHelperClient()
+        helperClient: WindowHelperClient = NotificationWindowHelperClient()
     ) {
         self.applicationProvider = applicationProvider
         self.helperRegistrationService = helperRegistrationService
@@ -146,7 +146,9 @@ private struct EmbeddedWindowHelperLauncher {
 
         let helperURL = WindowHelperBundleDiagnostics.helperURL
         guard FileManager.default.fileExists(atPath: helperURL.path) else {
-            return .unavailable(reason: L10n.format("activation.reason.embeddedHelperMissing", fallbackReason, helperURL.path))
+            return .unavailable(
+                reason: L10n.format("activation.reason.embeddedHelperMissing", fallbackReason, helperURL.path)
+            )
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
@@ -166,7 +168,13 @@ private struct EmbeddedWindowHelperLauncher {
         }
 
         if let launchError {
-            return .unavailable(reason: L10n.format("activation.reason.helperLaunchFailed", fallbackReason, launchError.localizedDescription))
+            return .unavailable(
+                reason: L10n.format(
+                    "activation.reason.helperLaunchFailed",
+                    fallbackReason,
+                    launchError.localizedDescription
+                )
+            )
         }
 
         let runningDeadline = Date().addingTimeInterval(2)
@@ -247,7 +255,7 @@ private enum WindowHelperNotification {
     static let messageKey = "message"
 }
 
-private struct DistributedNotificationWindowHelperClient: WindowHelperClient {
+private struct NotificationWindowHelperClient: WindowHelperClient {
     private let timeout: TimeInterval
 
     init(timeout: TimeInterval = 2) {
@@ -293,7 +301,9 @@ private struct DistributedNotificationWindowHelperClient: WindowHelperClient {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
 
-        return response?.activationResult ?? .helperUnavailable(reason: L10n.string("activation.reason.helperDidNotRespond"))
+        return response?.activationResult ?? .helperUnavailable(
+            reason: L10n.string("activation.reason.helperDidNotRespond")
+        )
     }
 }
 

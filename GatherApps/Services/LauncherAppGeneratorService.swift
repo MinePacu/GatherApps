@@ -37,7 +37,10 @@ struct LauncherAppGeneratorService {
         destinationDirectory: URL? = nil
     ) throws -> LauncherGenerationResult {
         let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
-        try FileManager.default.createDirectory(at: appURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: appURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
 
         if FileManager.default.fileExists(atPath: appURL.path) {
             try FileManager.default.removeItem(at: appURL)
@@ -59,8 +62,7 @@ struct LauncherAppGeneratorService {
             to: macOSURL.appendingPathComponent(executableName),
             groupID: group.id
         )
-        try writeInfoPlist(
-            to: contentsURL.appendingPathComponent("Info.plist"),
+        let infoPlist = LauncherInfoPlist(
             displayName: displayName,
             executableName: executableName,
             iconFileBaseName: iconFileBaseName,
@@ -68,6 +70,10 @@ struct LauncherAppGeneratorService {
             groupID: group.id,
             appBundleURL: appBundleURL,
             showsGatherAppsWindow: showsGatherAppsWindow
+        )
+        try writeInfoPlist(
+            infoPlist,
+            to: contentsURL.appendingPathComponent("Info.plist")
         )
         try writeIcon(
             for: group,
@@ -126,7 +132,9 @@ struct LauncherAppGeneratorService {
     func defaultDestinationDirectory() throws -> URL {
         try customDefaultDestinationDirectory ?? AppSupportPaths.userLaunchersDirectory
     }
+}
 
+private extension LauncherAppGeneratorService {
     private func launcherDisplayName(for group: AppGroup) -> String {
         "GatherApps - \(sanitizedFileName(group.name))"
     }
@@ -159,32 +167,23 @@ struct LauncherAppGeneratorService {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
-    private func writeInfoPlist(
-        to url: URL,
-        displayName: String,
-        executableName: String,
-        iconFileBaseName: String,
-        bundleIdentifier: String,
-        groupID: UUID,
-        appBundleURL: URL,
-        showsGatherAppsWindow: Bool
-    ) throws {
+    func writeInfoPlist(_ infoPlist: LauncherInfoPlist, to url: URL) throws {
         let info: [String: Any] = [
             "CFBundleDevelopmentRegion": "en",
-            "CFBundleExecutable": executableName,
-            "CFBundleIconFile": iconFileBaseName,
-            "CFBundleIdentifier": bundleIdentifier,
+            "CFBundleExecutable": infoPlist.executableName,
+            "CFBundleIconFile": infoPlist.iconFileBaseName,
+            "CFBundleIdentifier": infoPlist.bundleIdentifier,
             "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleName": displayName,
-            "CFBundleDisplayName": displayName,
+            "CFBundleName": infoPlist.displayName,
+            "CFBundleDisplayName": infoPlist.displayName,
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
-            "GatherAppsApplicationPath": appBundleURL.path,
-            "GatherAppsGroupID": groupID.uuidString,
+            "GatherAppsApplicationPath": infoPlist.appBundleURL.path,
+            "GatherAppsGroupID": infoPlist.groupID.uuidString,
             "GatherAppsLauncherRuntimeVersion": Self.launcherRuntimeVersion,
             "GatherAppsLauncherSchemaVersion": Self.launcherSchemaVersion,
-            "GatherAppsShowsGatherAppsWindow": showsGatherAppsWindow,
+            "GatherAppsShowsGatherAppsWindow": infoPlist.showsGatherAppsWindow,
             "LSMinimumSystemVersion": "14.0"
         ]
 
@@ -283,8 +282,7 @@ struct LauncherAppGeneratorService {
         if
             let iconFileName = group.iconFileName,
             let iconURL = iconService.iconURL(for: iconFileName),
-            FileManager.default.fileExists(atPath: iconURL.path)
-        {
+            FileManager.default.fileExists(atPath: iconURL.path) {
             return iconURL
         }
 
@@ -316,6 +314,16 @@ struct LauncherAppGeneratorService {
 
         try pngData.write(to: url, options: .atomic)
     }
+}
+
+private struct LauncherInfoPlist {
+    let displayName: String
+    let executableName: String
+    let iconFileBaseName: String
+    let bundleIdentifier: String
+    let groupID: UUID
+    let appBundleURL: URL
+    let showsGatherAppsWindow: Bool
 }
 
 private enum LauncherRuntimeLocator {
