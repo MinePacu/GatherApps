@@ -83,7 +83,11 @@ enum AppSupportPaths {
         }
     }
 
-    private static func migrateItemIfNeeded(named itemName: String, from sourceDirectory: URL, to destinationDirectory: URL) throws {
+    private static func migrateItemIfNeeded(
+        named itemName: String,
+        from sourceDirectory: URL,
+        to destinationDirectory: URL
+    ) throws {
         let sourceURL = sourceDirectory.appendingPathComponent(itemName)
         let destinationURL = destinationDirectory.appendingPathComponent(itemName)
 
