@@ -26,14 +26,14 @@ private enum WindowHelperNotification {
 }
 
 private final class HelperAppDelegate: NSObject, NSApplicationDelegate {
-    private let server = DistributedNotificationWindowHelperServer()
+    private let server = NotificationWindowHelperServer()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         server.start()
     }
 }
 
-private final class DistributedNotificationWindowHelperServer {
+private final class NotificationWindowHelperServer {
     private let center = DistributedNotificationCenter.default()
     private var observer: NSObjectProtocol?
 
@@ -69,25 +69,13 @@ private final class DistributedNotificationWindowHelperServer {
 private struct WindowRaiser {
     static func raiseWindows(bundleIdentifier: String) -> HelperResult {
         guard isAccessibilityTrusted else {
-            return HelperResult(
-                bundleIdentifier: bundleIdentifier,
-                appName: nil,
-                status: "accessibilityPermissionMissing",
-                raisedWindowCount: nil,
-                message: "Accessibility permission is required for GatherAppsWindowHelper."
-            )
+            return accessibilityPermissionMissingResult(bundleIdentifier: bundleIdentifier)
         }
 
         guard let app = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == bundleIdentifier
         }) else {
-            return HelperResult(
-                bundleIdentifier: bundleIdentifier,
-                appName: nil,
-                status: "appNotRunning",
-                raisedWindowCount: nil,
-                message: nil
-            )
+            return appNotRunningResult(bundleIdentifier: bundleIdentifier)
         }
 
         let appName = app.localizedName ?? bundleIdentifier
@@ -102,23 +90,15 @@ private struct WindowRaiser {
         )
 
         guard copyResult == .success else {
-            return HelperResult(
+            return windowReadFailedResult(
                 bundleIdentifier: bundleIdentifier,
                 appName: appName,
-                status: "raiseFailed",
-                raisedWindowCount: nil,
-                message: "Unable to read AXWindows: \(copyResult.rawValue)"
+                copyResult: copyResult
             )
         }
 
         guard let windows = windowsValue as? [AXUIElement], !windows.isEmpty else {
-            return HelperResult(
-                bundleIdentifier: bundleIdentifier,
-                appName: appName,
-                status: "noWindowsFound",
-                raisedWindowCount: 0,
-                message: nil
-            )
+            return noWindowsFoundResult(bundleIdentifier: bundleIdentifier, appName: appName)
         }
 
         let raisedWindowCount = windows.reduce(0) { count, window in
@@ -131,6 +111,50 @@ private struct WindowRaiser {
             status: raisedWindowCount > 0 ? "raised" : "raiseFailed",
             raisedWindowCount: raisedWindowCount,
             message: raisedWindowCount > 0 ? nil : "No windows accepted AXRaise."
+        )
+    }
+
+    private static func accessibilityPermissionMissingResult(bundleIdentifier: String) -> HelperResult {
+        HelperResult(
+            bundleIdentifier: bundleIdentifier,
+            appName: nil,
+            status: "accessibilityPermissionMissing",
+            raisedWindowCount: nil,
+            message: "Accessibility permission is required for GatherAppsWindowHelper."
+        )
+    }
+
+    private static func appNotRunningResult(bundleIdentifier: String) -> HelperResult {
+        HelperResult(
+            bundleIdentifier: bundleIdentifier,
+            appName: nil,
+            status: "appNotRunning",
+            raisedWindowCount: nil,
+            message: nil
+        )
+    }
+
+    private static func windowReadFailedResult(
+        bundleIdentifier: String,
+        appName: String,
+        copyResult: AXError
+    ) -> HelperResult {
+        HelperResult(
+            bundleIdentifier: bundleIdentifier,
+            appName: appName,
+            status: "raiseFailed",
+            raisedWindowCount: nil,
+            message: "Unable to read AXWindows: \(copyResult.rawValue)"
+        )
+    }
+
+    private static func noWindowsFoundResult(bundleIdentifier: String, appName: String) -> HelperResult {
+        HelperResult(
+            bundleIdentifier: bundleIdentifier,
+            appName: appName,
+            status: "noWindowsFound",
+            raisedWindowCount: 0,
+            message: nil
         )
     }
 
