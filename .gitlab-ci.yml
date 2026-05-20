@@ -29,6 +29,8 @@ workflow:
     - macos
   interruptible: true
   timeout: 30m
+  when: manual
+  allow_failure: false
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -50,7 +52,8 @@ secret_detection:
 code-quality:
   extends: .macos-runner
   stage: quality
-  allow_failure: true
+  environment:
+    name: macos/code-quality
   script:
     - mkdir -p CodeQuality
     - if ! command -v swiftlint >/dev/null; then brew install swiftlint; fi
@@ -70,6 +73,8 @@ code-quality:
 resolve-and-build:
   extends: .macos-runner
   stage: build
+  environment:
+    name: macos/resolve-and-build
   # Cache Swift Package Manager checkouts across pipelines so MR branches
   # don't re-download dependencies every run. Stored on the self-hosted
   # macOS runner's local disk -- this does not consume GitLab.com cache
@@ -99,6 +104,8 @@ resolve-and-build:
 test:
   extends: .macos-runner
   stage: test
+  environment:
+    name: macos/test
   needs:
     - resolve-and-build
   script:
@@ -150,9 +157,10 @@ test:
 launcher-integration-test:
   extends: .macos-runner
   stage: test
+  environment:
+    name: macos/launcher-integration-test
   needs:
     - resolve-and-build
-  allow_failure: true
   script:
     - xcodebuild -version
     - mkdir -p TestResults TestReports
