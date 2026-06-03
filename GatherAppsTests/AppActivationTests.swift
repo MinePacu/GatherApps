@@ -97,6 +97,36 @@ final class AppActivationTests: XCTestCase {
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
+    func testExecutableActivationActivatesRunningExecutableApplicationWithoutWindowHelper() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: nil,
+            localizedName: "scrcpy",
+            processIdentifier: 4321,
+            activationResult: true
+        )
+        let appProvider = StubApplicationProvider(app: nil, executableApp: app)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "unused", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+        let target = GroupedApp(
+            executablePath: "/opt/homebrew/bin/scrcpy",
+            name: "scrcpy",
+            appPath: nil
+        )
+
+        let result = service.activate(target)
+
+        XCTAssertEqual(result, .success(appName: "scrcpy"))
+        XCTAssertEqual(appProvider.requestedExecutablePaths, ["/opt/homebrew/bin/scrcpy"])
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
+        XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
+    }
+
 }
 
 private final class StubActivatableApplication: ActivatableApplication {
@@ -124,11 +154,23 @@ private final class StubActivatableApplication: ActivatableApplication {
     }
 }
 
-private struct StubApplicationProvider: ApplicationProviding {
+private final class StubApplicationProvider: ApplicationProviding {
     let app: StubActivatableApplication?
+    let executableApp: StubActivatableApplication?
+    private(set) var requestedExecutablePaths: [String] = []
+
+    init(app: StubActivatableApplication?, executableApp: StubActivatableApplication? = nil) {
+        self.app = app
+        self.executableApp = executableApp
+    }
 
     func runningApplication(bundleIdentifier: String) -> ActivatableApplication? {
         app?.bundleIdentifier == bundleIdentifier ? app : nil
+    }
+
+    func runningApplication(executablePath: String) -> ActivatableApplication? {
+        requestedExecutablePaths.append(executablePath)
+        return executableApp
     }
 }
 
@@ -161,7 +203,13 @@ private final class StubWindowHelperClient: WindowHelperClient {
 }
 
 final class StubAppActivationService: AppActivationProviding {
+    private(set) var requestedApps: [GroupedApp] = []
     private(set) var requestedBundleIdentifiers: [String] = []
+
+    func activate(_ app: GroupedApp) -> ActivationResult {
+        requestedApps.append(app)
+        return .success(appName: app.name)
+    }
 
     func activate(bundleIdentifier: String) -> ActivationResult {
         requestedBundleIdentifiers.append(bundleIdentifier)

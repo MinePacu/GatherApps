@@ -12,9 +12,11 @@ protocol ActivatableApplication {
 
 protocol ApplicationProviding {
     func runningApplication(bundleIdentifier: String) -> ActivatableApplication?
+    func runningApplication(executablePath: String) -> ActivatableApplication?
 }
 
 protocol AppActivationProviding {
+    func activate(_ app: GroupedApp) -> ActivationResult
     func activate(bundleIdentifier: String) -> ActivationResult
 }
 
@@ -60,6 +62,18 @@ struct AppActivationService: AppActivationProviding {
         self.helperClient = helperClient
     }
 
+    func activate(_ app: GroupedApp) -> ActivationResult {
+        switch app.kind {
+        case .bundle:
+            return activate(bundleIdentifier: app.bundleIdentifier)
+        case .executable:
+            guard let executablePath = app.executablePath else {
+                return .appNotRunning(bundleIdentifier: app.bundleIdentifier)
+            }
+            return activateExecutable(path: executablePath, name: app.name, identifier: app.bundleIdentifier)
+        }
+    }
+
     func activate(bundleIdentifier: String) -> ActivationResult {
         guard let app = applicationProvider.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
@@ -91,6 +105,17 @@ struct AppActivationService: AppActivationProviding {
                 : .helperUnavailable(reason: L10n.string("activation.reason.windowHelperFallbackFailed"))
         }
     }
+
+    private func activateExecutable(path: String, name: String, identifier: String) -> ActivationResult {
+        guard let app = applicationProvider.runningApplication(executablePath: path) else {
+            return .appNotRunning(bundleIdentifier: identifier)
+        }
+
+        let appName = app.localizedName ?? name
+        return app.activate(options: [.activateAllWindows])
+            ? .success(appName: appName)
+            : .activationFailed(appName: appName)
+    }
 }
 
 extension NSRunningApplication: ActivatableApplication {}
@@ -100,6 +125,21 @@ private struct NSWorkspaceApplicationProvider: ApplicationProviding {
         NSWorkspace.shared.runningApplications.first {
             $0.bundleIdentifier == bundleIdentifier
         }
+    }
+
+    func runningApplication(executablePath: String) -> ActivatableApplication? {
+        let standardizedPath = URL(fileURLWithPath: executablePath).standardizedFileURL.path
+        let executableApps = RunningAppService.executableAppsFromVisibleWindows(excludingProcessIDs: [])
+        guard
+            let runningApp = executableApps.first(where: {
+                $0.executableURL?.path == standardizedPath
+            }),
+            let processIdentifier = runningApp.processIdentifier
+        else {
+            return nil
+        }
+
+        return NSRunningApplication(processIdentifier: processIdentifier)
     }
 }
 

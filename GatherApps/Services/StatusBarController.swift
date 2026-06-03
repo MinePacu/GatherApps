@@ -63,10 +63,10 @@ final class StatusBarController: NSObject {
         menu.addItem(headerItem(title: "GatherApps"))
         menu.addItem(.separator())
 
-        let runningBundleIdentifiers = Set(runningAppProvider().map(\.bundleIdentifier))
+        let runningAppIdentifiers = Set(runningAppProvider().map(\.id))
         let groupItems = StatusBarMenuModel.groupItems(
             for: store.groups,
-            runningBundleIdentifiers: runningBundleIdentifiers
+            runningAppIdentifiers: runningAppIdentifiers
         )
         if groupItems.isEmpty {
             let emptyItem = NSMenuItem(title: "No Groups", action: nil, keyEquivalent: "")
