@@ -5,14 +5,19 @@ import Foundation
 struct GroupIconService {
     private let iconSize = NSSize(width: 128, height: 128)
     private let tileSize = NSSize(width: 54, height: 54)
+    private let iconsDirectoryURL: URL?
+
+    init(iconsDirectoryURL: URL? = nil) {
+        self.iconsDirectoryURL = iconsDirectoryURL
+    }
 
     func iconURL(for fileName: String) -> URL? {
-        try? AppSupportPaths.iconsDirectory.appendingPathComponent(fileName)
+        try? iconsDirectory().appendingPathComponent(fileName)
     }
 
     func generateIcon(for group: AppGroup) throws -> String {
         let fileName = "\(group.id.uuidString)-\(UUID().uuidString).png"
-        let outputURL = try AppSupportPaths.iconsDirectory.appendingPathComponent(fileName)
+        let outputURL = try iconsDirectory().appendingPathComponent(fileName)
         let image = makeIcon(for: group)
 
         guard
@@ -25,6 +30,15 @@ struct GroupIconService {
 
         try pngData.write(to: outputURL, options: .atomic)
         return fileName
+    }
+
+    private func iconsDirectory() throws -> URL {
+        if let iconsDirectoryURL {
+            try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
+            return iconsDirectoryURL
+        }
+
+        return try AppSupportPaths.iconsDirectory
     }
 
     private func makeIcon(for group: AppGroup) -> NSImage {

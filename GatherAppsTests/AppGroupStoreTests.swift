@@ -109,6 +109,67 @@ final class AppGroupStoreTests: XCTestCase {
         XCTAssertTrue(savedGroups.isEmpty)
     }
 
+    func testStoreInitializationCleansUpOrphanedIcons() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsStoreInitCleanupTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+
+        let keptIconFileName = "kept.png"
+        let orphanedIconFileName = "orphaned.png"
+        try Data("keep".utf8).write(to: iconsDirectory.appendingPathComponent(keptIconFileName))
+        try Data("delete".utf8).write(to: iconsDirectory.appendingPathComponent(orphanedIconFileName))
+
+        let group = AppGroup(name: "Design", iconFileName: keptIconFileName)
+        try JSONEncoder().encode([group]).write(to: groupsFileURL, options: .atomic)
+
+        _ = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(keptIconFileName).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(orphanedIconFileName).path))
+    }
+
+    func testRegeneratingGroupIconTriggersOrphanCleanup() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsStoreRegenerationCleanupTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+
+        let orphanedIconURL = iconsDirectory.appendingPathComponent("orphaned.png")
+        try Data("delete".utf8).write(to: orphanedIconURL)
+
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
+        )
+        store.createGroup(named: "Dev")
+        let group = try XCTUnwrap(store.groups.first)
+
+        store.add(
+            RunningAppInfo(
+                bundleIdentifier: "com.apple.Safari",
+                name: "Safari",
+                appURL: URL(fileURLWithPath: "/Applications/Safari.app")
+            ),
+            to: group.id
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedIconURL.path))
+    }
+
     @discardableResult
     private static func writeRuntimeExecutable(named name: String, to url: URL) throws -> Data {
         let fixtureURL = runtimeFixtureURL(named: name)
