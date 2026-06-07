@@ -1,0 +1,19 @@
+excluded:
+  - .derivedData
+  - .swiftlint_cache
+  - .worktrees
+  - DerivedData
+  - TestResults
+  - TestReports
+  - CodeQuality
+  - GatherApps.xcodeproj/xcuserdata
+
+cache_path: .swiftlint_cache
+
+file_length:
+  warning: 500
+  error: 1000
+
+type_body_length:
+  warning: 400
+  error: 500

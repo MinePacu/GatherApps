@@ -9,20 +9,26 @@ final class AppGroupStore: ObservableObject {
     @Published var lastErrorMessage: String?
 
     private let groupsFileURL: URL?
-    private let iconService = GroupIconService()
+    private let iconService: GroupIconService
+    private let iconCleanupService: GroupIconCleanupService
     private let activationService: AppActivationProviding
     private let launcherGeneratorService: LauncherAppGeneratorService
 
     init(
         groupsFileURL: URL? = nil,
+        iconService: GroupIconService? = nil,
+        iconCleanupService: GroupIconCleanupService? = nil,
         activationService: AppActivationProviding? = nil,
         launcherGeneratorService: LauncherAppGeneratorService? = nil
     ) {
         self.groupsFileURL = groupsFileURL
+        self.iconService = iconService ?? GroupIconService()
+        self.iconCleanupService = iconCleanupService ?? GroupIconCleanupService()
         self.activationService = activationService ?? AppActivationService()
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
-        regenerateMissingIcons()
+        regenerateMissingOrDeletedIcons()
+        cleanupOrphanedIcons()
         regenerateStaleLaunchers()
     }
 
@@ -49,6 +55,7 @@ final class AppGroupStore: ObservableObject {
             deleteResources(for: group)
         }
         save()
+        cleanupOrphanedIcons()
     }
 
     func deleteGroup(id: AppGroup.ID) {
@@ -56,6 +63,7 @@ final class AppGroupStore: ObservableObject {
         let group = groups.remove(at: index)
         deleteResources(for: group)
         save()
+        cleanupOrphanedIcons()
     }
 
     func add(_ runningApp: RunningAppInfo, to groupID: AppGroup.ID) {
@@ -175,10 +183,13 @@ final class AppGroupStore: ObservableObject {
         }
     }
 
-    private func regenerateMissingIcons() {
+    private func regenerateMissingOrDeletedIcons() {
         var didChange = false
         for index in groups.indices {
-            guard groups[index].iconFileName == nil else { continue }
+            let iconFileName = groups[index].iconFileName
+            let iconExists = iconFileName.flatMap { iconService.iconURL(for: $0) }
+                .map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+            guard iconFileName == nil || iconExists == false else { continue }
             do {
                 groups[index].iconFileName = try iconService.generateIcon(for: groups[index])
                 didChange = true
@@ -201,6 +212,7 @@ final class AppGroupStore: ObservableObject {
             if let previousIconFileName, previousIconFileName != newIconFileName {
                 deleteIcon(named: previousIconFileName)
             }
+            cleanupOrphanedIcons()
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconRefreshFailed", error.localizedDescription)
         }
@@ -239,6 +251,16 @@ final class AppGroupStore: ObservableObject {
         }
 
         try? FileManager.default.removeItem(at: iconURL)
+    }
+
+    private func cleanupOrphanedIcons() {
+        let referencedFileNames = Set(groups.compactMap(\.iconFileName))
+
+        do {
+            try iconCleanupService.cleanup(referencedFileNames: referencedFileNames)
+        } catch {
+            // Cleanup should not block the main group management flows.
+        }
     }
 
     private static func frontmostActivationOrder(for group: AppGroup) -> [GroupedApp] {

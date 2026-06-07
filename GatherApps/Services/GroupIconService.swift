@@ -5,15 +5,20 @@ import Foundation
 struct GroupIconService {
     private let iconSize = NSSize(width: 128, height: 128)
     private let tileSize = NSSize(width: 54, height: 54)
+    private let iconsDirectoryURL: URL?
+
+    init(iconsDirectoryURL: URL? = nil) {
+        self.iconsDirectoryURL = iconsDirectoryURL
+    }
 
     func iconURL(for fileName: String) -> URL? {
-        try? AppSupportPaths.iconsDirectory.appendingPathComponent(fileName)
+        try? iconsDirectory().appendingPathComponent(fileName)
     }
 
     func generateIcon(for group: AppGroup) throws -> String {
         let fileName = "\(group.id.uuidString)-\(UUID().uuidString).png"
-        let outputURL = try AppSupportPaths.iconsDirectory.appendingPathComponent(fileName)
-        let image = makeIcon(for: group)
+        let outputURL = try iconsDirectory().appendingPathComponent(fileName)
+        let image = renderedIcon(for: group)
 
         guard
             let tiffData = image.tiffRepresentation,
@@ -27,7 +32,28 @@ struct GroupIconService {
         return fileName
     }
 
-    private func makeIcon(for group: AppGroup) -> NSImage {
+    func iconImage(for group: AppGroup) throws -> NSImage {
+        if
+            let fileName = group.iconFileName,
+            let iconURL = iconURL(for: fileName),
+            FileManager.default.fileExists(atPath: iconURL.path),
+            let image = NSImage(contentsOf: iconURL) {
+            return image
+        }
+
+        return renderedIcon(for: group)
+    }
+
+    private func iconsDirectory() throws -> URL {
+        if let iconsDirectoryURL {
+            try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
+            return iconsDirectoryURL
+        }
+
+        return try AppSupportPaths.iconsDirectory
+    }
+
+    private func renderedIcon(for group: AppGroup) -> NSImage {
         let image = NSImage(size: iconSize)
         image.lockFocus()
 

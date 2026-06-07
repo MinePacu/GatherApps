@@ -119,4 +119,42 @@ final class LauncherAppGeneratorTests: XCTestCase {
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: executableURL.path))
     }
 
+    func testLauncherGeneratorDoesNotPersistReplacementPNGWhenReferencedIconIsMissing() throws {
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsLauncherMissingPNGTests-\(UUID().uuidString)", isDirectory: true)
+        let runtimeExecutableURL = destination
+            .appendingPathComponent("Runtime", isDirectory: true)
+            .appendingPathComponent("GatherAppsLauncherRuntime")
+        let iconsDirectory = destination.appendingPathComponent("Icons", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: runtimeExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try LauncherTestSupport.writeRuntimeExecutable(named: "runtime executable", to: runtimeExecutableURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeExecutableURL.path)
+
+        let group = AppGroup(name: "Dev/Test", iconFileName: "missing.png")
+        let generator = LauncherAppGeneratorService(
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            launcherRuntimeExecutableURL: runtimeExecutableURL
+        )
+        let result = try generator.generateLauncher(for: group, destinationDirectory: destination)
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: result.appURL.appendingPathComponent("Contents/Resources/GroupIcon.icns").path
+            )
+        )
+        let iconFiles = try FileManager.default.contentsOfDirectory(
+            at: iconsDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+        XCTAssertTrue(iconFiles.isEmpty)
+    }
+
 }

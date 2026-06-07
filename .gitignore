@@ -1,1 +1,3 @@
 .derivedData/
+.swiftlint_cache/
+CodeQuality/
