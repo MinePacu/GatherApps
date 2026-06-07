@@ -10,11 +10,11 @@ struct StatusBarGroupMenuItem: Equatable {
 enum StatusBarMenuModel {
     static func groupItems(
         for groups: [AppGroup],
-        runningBundleIdentifiers: Set<String>
+        runningAppIdentifiers: Set<String>
     ) -> [StatusBarGroupMenuItem] {
         groups.map { group in
             let runningCount = group.apps.filter {
-                runningBundleIdentifiers.contains($0.bundleIdentifier)
+                runningAppIdentifiers.contains($0.id)
             }.count
             let totalCount = group.apps.count
 

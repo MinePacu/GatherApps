@@ -45,6 +45,10 @@ struct GroupIconService {
     }
 
     private func iconForGroupedApp(_ app: GroupedApp) -> NSImage? {
+        if app.kind == .executable, let executablePath = app.executablePath {
+            return NSWorkspace.shared.icon(forFile: executablePath)
+        }
+
         if let appPath = app.appPath, FileManager.default.fileExists(atPath: appPath) {
             return NSWorkspace.shared.icon(forFile: appPath)
         }

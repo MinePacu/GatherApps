@@ -42,7 +42,7 @@ final class AppGroupStoreTests: XCTestCase {
         coordinator.showSwitcher()
         coordinator.showMainWindow()
 
-        XCTAssertEqual(activationService.requestedBundleIdentifiers, ["com.example.Design"])
+        XCTAssertEqual(activationService.requestedApps.map(\.id), ["com.example.Design"])
         XCTAssertTrue(didShowSwitcher)
         XCTAssertTrue(didShowMainWindow)
     }

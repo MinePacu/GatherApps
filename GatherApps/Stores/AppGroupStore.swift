@@ -60,17 +60,28 @@ final class AppGroupStore: ObservableObject {
 
     func add(_ runningApp: RunningAppInfo, to groupID: AppGroup.ID) {
         guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
-        guard !groups[index].apps.contains(where: { $0.bundleIdentifier == runningApp.bundleIdentifier }) else {
+        guard !groups[index].apps.contains(where: { $0.id == runningApp.id }) else {
             return
         }
 
-        groups[index].apps.append(
-            GroupedApp(
+        let groupedApp: GroupedApp
+        switch runningApp.kind {
+        case .bundle:
+            groupedApp = GroupedApp(
                 bundleIdentifier: runningApp.bundleIdentifier,
                 name: runningApp.name,
                 appPath: runningApp.appURL.path
             )
-        )
+        case .executable:
+            let executablePath = runningApp.executableURL?.path ?? runningApp.appURL.path
+            groupedApp = GroupedApp(
+                executablePath: executablePath,
+                name: runningApp.name,
+                appPath: nil
+            )
+        }
+
+        groups[index].apps.append(groupedApp)
         regenerateIcon(forGroupAt: index)
     }
 
@@ -84,16 +95,14 @@ final class AppGroupStore: ObservableObject {
 
     func activate(groupID: AppGroup.ID) {
         guard let group = groups.first(where: { $0.id == groupID }) else { return }
-        var resultsByBundleIdentifier: [String: ActivationResult] = [:]
+        var resultsByIdentifier: [String: ActivationResult] = [:]
 
         for app in Self.frontmostActivationOrder(for: group) {
-            resultsByBundleIdentifier[app.bundleIdentifier] = activationService.activate(
-                bundleIdentifier: app.bundleIdentifier
-            )
+            resultsByIdentifier[app.id] = activationService.activate(app)
         }
 
         lastActivationResults = group.apps.compactMap {
-            resultsByBundleIdentifier[$0.bundleIdentifier]
+            resultsByIdentifier[$0.id]
         }
     }
 

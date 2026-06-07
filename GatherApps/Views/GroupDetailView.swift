@@ -89,7 +89,7 @@ struct GroupDetailView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(app.name)
                                     .lineLimit(1)
-                                Text(app.bundleIdentifier)
+                                Text(detailText(for: app))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
@@ -141,7 +141,7 @@ struct GroupDetailView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(app.name)
                             .lineLimit(1)
-                        Text(app.bundleIdentifier)
+                        Text(detailText(for: app))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -217,11 +217,15 @@ struct GroupDetailView: View {
 
     private func availableRunningApps(for group: AppGroup) -> [RunningAppInfo] {
         runningApps.filter { runningApp in
-            !group.apps.contains(where: { $0.bundleIdentifier == runningApp.bundleIdentifier })
+            !group.apps.contains(where: { $0.id == runningApp.id })
         }
     }
 
     private func icon(for app: GroupedApp) -> NSImage? {
+        if app.kind == .executable, let executablePath = app.executablePath {
+            return NSWorkspace.shared.icon(forFile: executablePath)
+        }
+
         if let appPath = app.appPath, FileManager.default.fileExists(atPath: appPath) {
             return NSWorkspace.shared.icon(forFile: appPath)
         }
@@ -236,5 +240,23 @@ struct GroupDetailView: View {
         }
 
         return NSWorkspace.shared.icon(forFile: bundleURL.path)
+    }
+
+    private func detailText(for app: GroupedApp) -> String {
+        switch app.kind {
+        case .bundle:
+            app.bundleIdentifier
+        case .executable:
+            app.executablePath ?? app.bundleIdentifier
+        }
+    }
+
+    private func detailText(for app: RunningAppInfo) -> String {
+        switch app.kind {
+        case .bundle:
+            app.bundleIdentifier
+        case .executable:
+            app.executableURL?.path ?? app.bundleIdentifier
+        }
     }
 }
