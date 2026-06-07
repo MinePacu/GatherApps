@@ -4,7 +4,7 @@ import Foundation
 @MainActor
 final class SwitcherViewModel: ObservableObject {
     @Published private(set) var selectedIndex = 0
-    @Published private var runningBundleIdentifiers: Set<String> = []
+    @Published private var runningAppIdentifiers: Set<String> = []
 
     private let store: AppGroupStore
     private let runningAppService: RunningAppService
@@ -32,9 +32,7 @@ final class SwitcherViewModel: ObservableObject {
     }
 
     func refresh() {
-        runningBundleIdentifiers = Set(
-            runningAppService.fetchRunningApps().map(\.bundleIdentifier)
-        )
+        runningAppIdentifiers = Set(runningAppService.fetchRunningApps().map(\.id))
         clampSelection()
     }
 
@@ -74,7 +72,7 @@ final class SwitcherViewModel: ObservableObject {
 
     func runningAppCount(for group: AppGroup) -> Int {
         group.apps.filter {
-            runningBundleIdentifiers.contains($0.bundleIdentifier)
+            runningAppIdentifiers.contains($0.id)
         }.count
     }
 
