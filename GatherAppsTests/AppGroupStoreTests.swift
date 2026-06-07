@@ -133,13 +133,20 @@ final class AppGroupStoreTests: XCTestCase {
             iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
         )
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(keptIconFileName).path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(orphanedIconFileName).path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(keptIconFileName).path)
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(orphanedIconFileName).path)
+        )
     }
 
     func testStoreInitializationRegeneratesMissingReferencedIconsAndPersistsNewFileName() throws {
         let testDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GatherAppsStoreMissingIconRecoveryTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent(
+                "GatherAppsStoreMissingIconRecoveryTests-\(UUID().uuidString)",
+                isDirectory: true
+            )
         let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
         let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
         defer {
@@ -162,7 +169,9 @@ final class AppGroupStoreTests: XCTestCase {
         let regeneratedFileName = try XCTUnwrap(savedGroups.first?.iconFileName)
 
         XCTAssertNotEqual(regeneratedFileName, missingIconFileName)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(regeneratedFileName).path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: iconsDirectory.appendingPathComponent(regeneratedFileName).path)
+        )
         XCTAssertEqual(store.groups.first?.iconFileName, regeneratedFileName)
     }
 

@@ -144,7 +144,11 @@ final class LauncherAppGeneratorTests: XCTestCase {
         )
         let result = try generator.generateLauncher(for: group, destinationDirectory: destination)
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: result.appURL.appendingPathComponent("Contents/Resources/GroupIcon.icns").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: result.appURL.appendingPathComponent("Contents/Resources/GroupIcon.icns").path
+            )
+        )
         let iconFiles = try FileManager.default.contentsOfDirectory(
             at: iconsDirectory,
             includingPropertiesForKeys: nil,
