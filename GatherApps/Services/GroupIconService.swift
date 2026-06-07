@@ -18,7 +18,7 @@ struct GroupIconService {
     func generateIcon(for group: AppGroup) throws -> String {
         let fileName = "\(group.id.uuidString)-\(UUID().uuidString).png"
         let outputURL = try iconsDirectory().appendingPathComponent(fileName)
-        let image = makeIcon(for: group)
+        let image = renderedIcon(for: group)
 
         guard
             let tiffData = image.tiffRepresentation,
@@ -32,6 +32,18 @@ struct GroupIconService {
         return fileName
     }
 
+    func iconImage(for group: AppGroup) throws -> NSImage {
+        if
+            let fileName = group.iconFileName,
+            let iconURL = iconURL(for: fileName),
+            FileManager.default.fileExists(atPath: iconURL.path),
+            let image = NSImage(contentsOf: iconURL) {
+            return image
+        }
+
+        return renderedIcon(for: group)
+    }
+
     private func iconsDirectory() throws -> URL {
         if let iconsDirectoryURL {
             try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
@@ -41,7 +53,7 @@ struct GroupIconService {
         return try AppSupportPaths.iconsDirectory
     }
 
-    private func makeIcon(for group: AppGroup) -> NSImage {
+    private func renderedIcon(for group: AppGroup) -> NSImage {
         let image = NSImage(size: iconSize)
         image.lockFocus()
 

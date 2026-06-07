@@ -27,7 +27,7 @@ final class AppGroupStore: ObservableObject {
         self.activationService = activationService ?? AppActivationService()
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
         load()
-        regenerateMissingIcons()
+        regenerateMissingOrDeletedIcons()
         cleanupOrphanedIcons()
         regenerateStaleLaunchers()
     }
@@ -183,10 +183,13 @@ final class AppGroupStore: ObservableObject {
         }
     }
 
-    private func regenerateMissingIcons() {
+    private func regenerateMissingOrDeletedIcons() {
         var didChange = false
         for index in groups.indices {
-            guard groups[index].iconFileName == nil else { continue }
+            let iconFileName = groups[index].iconFileName
+            let iconExists = iconFileName.flatMap { iconService.iconURL(for: $0) }
+                .map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+            guard iconFileName == nil || iconExists == false else { continue }
             do {
                 groups[index].iconFileName = try iconService.generateIcon(for: groups[index])
                 didChange = true
