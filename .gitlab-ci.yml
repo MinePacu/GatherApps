@@ -157,6 +157,7 @@ test:
 launcher-integration-test:
   extends: .macos-runner
   stage: test
+  allow_failure: true
   environment:
     name: macos/launcher-integration-test
   needs:

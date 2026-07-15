@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import XCTest
 @testable import GatherApps
 
@@ -418,6 +419,25 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(items.map(\.title), ["Activate Writing", "Activate Device", "Activate Empty"])
         XCTAssertEqual(items.map(\.runningCountTitle), ["1/2 running", "1/1 running", "0/0 running"])
         XCTAssertEqual(items.map(\.isEnabled), [true, true, false])
+    }
+
+    func testStatusBarWindowHelperStatusShowsRunningOnlyWhenHelperProcessIsRunning() {
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: true),
+            "Running"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: false),
+            "Not Running"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .requiresApproval, isHelperRunning: true),
+            "Needs Approval"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .notFound, isHelperRunning: false),
+            "Unavailable"
+        )
     }
 
     private static func localizationKeys(at url: URL) throws -> Set<String> {
