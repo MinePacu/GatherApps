@@ -3,6 +3,12 @@ import Foundation
 
 @MainActor
 final class AppGroupStore: ObservableObject {
+    private enum LoadResult {
+        case loaded
+        case notFound
+        case failed
+    }
+
     @Published private(set) var groups: [AppGroup] = []
     @Published var lastActivationResults: [ActivationResult] = []
     @Published var lastLauncherGenerationResult: LauncherGenerationResult?
@@ -26,10 +32,14 @@ final class AppGroupStore: ObservableObject {
         self.iconCleanupService = iconCleanupService ?? GroupIconCleanupService()
         self.activationService = activationService ?? AppActivationService()
         self.launcherGeneratorService = launcherGeneratorService ?? LauncherAppGeneratorService()
-        load()
-        regenerateMissingOrDeletedIcons()
-        cleanupOrphanedIcons()
-        regenerateStaleLaunchers()
+        switch load() {
+        case .loaded:
+            regenerateMissingOrDeletedIcons()
+            cleanupOrphanedIcons()
+            regenerateStaleLaunchers()
+        case .notFound, .failed:
+            break
+        }
     }
 
     func createGroup(named name: String) {
@@ -151,19 +161,21 @@ final class AppGroupStore: ObservableObject {
         return iconService.iconURL(for: iconFileName)
     }
 
-    private func load() {
+    private func load() -> LoadResult {
         do {
             let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
                 groups = []
-                return
+                return .notFound
             }
 
             let data = try Data(contentsOf: fileURL)
             groups = try JSONDecoder().decode([AppGroup].self, from: data)
+            return .loaded
         } catch {
             groups = []
             lastErrorMessage = L10n.format("errors.groupLoadFailed", error.localizedDescription)
+            return .failed
         }
     }
 

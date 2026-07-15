@@ -141,6 +141,77 @@ final class AppGroupStoreTests: XCTestCase {
         )
     }
 
+    func testStoreInitializationPreservesIconsWhenGroupsFileIsCorrupt() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsStoreCorruptLoadTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
+        let iconURL = iconsDirectory.appendingPathComponent("recoverable.png")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+        try Data("not valid JSON".utf8).write(to: groupsFileURL)
+        try Data("preserve".utf8).write(to: iconURL)
+
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
+        )
+
+        XCTAssertTrue(store.groups.isEmpty)
+        XCTAssertNotNil(store.lastErrorMessage)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path))
+    }
+
+    func testStoreInitializationPreservesIconsWhenGroupsFileIsMissing() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsStoreMissingFileTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
+        let iconURL = iconsDirectory.appendingPathComponent("recoverable.png")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+        try Data("preserve".utf8).write(to: iconURL)
+
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
+        )
+
+        XCTAssertTrue(store.groups.isEmpty)
+        XCTAssertNil(store.lastErrorMessage)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path))
+    }
+
+    func testStoreInitializationCleansUpIconsForValidEmptyGroupsFile() throws {
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsStoreEmptyGroupsTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
+        let orphanedIconURL = iconsDirectory.appendingPathComponent("orphaned.png")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: iconsDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode([AppGroup]()).write(to: groupsFileURL, options: .atomic)
+        try Data("delete".utf8).write(to: orphanedIconURL)
+
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
+            iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
+        )
+
+        XCTAssertTrue(store.groups.isEmpty)
+        XCTAssertNil(store.lastErrorMessage)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedIconURL.path))
+    }
+
     func testStoreInitializationRegeneratesMissingReferencedIconsAndPersistsNewFileName() throws {
         let testDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
