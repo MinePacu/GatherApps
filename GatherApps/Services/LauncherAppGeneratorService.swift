@@ -13,18 +13,20 @@ struct LauncherAppGeneratorService {
     private static let launcherSchemaVersion = 2
     private static let launcherRuntimeVersion = 2
 
-    private let iconService = GroupIconService()
+    private let iconService: GroupIconService
     private let launcherRuntimeExecutableURL: URL?
     private let appBundleURL: URL
     private let customDefaultDestinationDirectory: URL?
     private let launcherAppLifecycleManager: LauncherAppLifecycleManaging
 
     init(
+        iconService: GroupIconService? = nil,
         launcherRuntimeExecutableURL: URL? = LauncherRuntimeLocator.defaultRuntimeExecutableURL(),
         appBundleURL: URL = Bundle.main.bundleURL,
         defaultDestinationDirectory: URL? = nil,
         launcherAppLifecycleManager: LauncherAppLifecycleManaging = NSWorkspaceLauncherAppLifecycleManager()
     ) {
+        self.iconService = iconService ?? GroupIconService()
         self.launcherRuntimeExecutableURL = launcherRuntimeExecutableURL
         self.appBundleURL = appBundleURL
         self.customDefaultDestinationDirectory = defaultDestinationDirectory
@@ -232,7 +234,6 @@ private extension LauncherAppGeneratorService {
     }
 
     private func writeIcon(for group: AppGroup, to outputURL: URL) throws {
-        let pngURL = try pngIconURL(for: group)
         let iconsetURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString).iconset", isDirectory: true)
         defer {
@@ -254,9 +255,7 @@ private extension LauncherAppGeneratorService {
             ("icon_512x512@2x.png", 1024)
         ]
 
-        guard let sourceImage = NSImage(contentsOf: pngURL) else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
+        let sourceImage = try iconService.iconImage(for: group)
 
         for iconFile in iconFiles {
             try writePNG(
@@ -276,21 +275,6 @@ private extension LauncherAppGeneratorService {
         guard process.terminationStatus == 0 else {
             throw CocoaError(.fileWriteUnknown)
         }
-    }
-
-    private func pngIconURL(for group: AppGroup) throws -> URL {
-        if
-            let iconFileName = group.iconFileName,
-            let iconURL = iconService.iconURL(for: iconFileName),
-            FileManager.default.fileExists(atPath: iconURL.path) {
-            return iconURL
-        }
-
-        let iconFileName = try iconService.generateIcon(for: group)
-        guard let iconURL = iconService.iconURL(for: iconFileName) else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        return iconURL
     }
 
     private func writePNG(_ image: NSImage, size: NSSize, to url: URL) throws {

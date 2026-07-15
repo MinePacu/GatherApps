@@ -8,25 +8,49 @@ struct StatusBarActions {
     let showMainWindow: () -> Void
 }
 
+enum StatusBarWindowHelperStatus {
+    static func title(serviceStatus: SMAppService.Status, isHelperRunning: Bool) -> String {
+        switch serviceStatus {
+        case .enabled:
+            return isHelperRunning ? "Running" : "Not Running"
+        case .requiresApproval:
+            return "Needs Approval"
+        case .notRegistered:
+            return isHelperRunning ? "Running" : "Unavailable"
+        case .notFound:
+            return "Unavailable"
+        @unknown default:
+            return "Unavailable"
+        }
+    }
+}
+
 @MainActor
 final class StatusBarController: NSObject {
     private let store: AppGroupStore
     private let settings: MenuBarSettings
     private let actions: StatusBarActions
     private let runningAppProvider: () -> [RunningAppInfo]
+    private let windowHelperRunningProvider: () -> Bool
     private var statusItem: NSStatusItem?
 
     init(
         store: AppGroupStore,
         settings: MenuBarSettings,
         actions: StatusBarActions,
-        runningAppProvider: (() -> [RunningAppInfo])? = nil
+        runningAppProvider: (() -> [RunningAppInfo])? = nil,
+        windowHelperRunningProvider: (() -> Bool)? = nil
     ) {
         self.store = store
         self.settings = settings
         self.actions = actions
         self.runningAppProvider = runningAppProvider ?? {
             RunningAppService().fetchRunningApps()
+        }
+        self.windowHelperRunningProvider = windowHelperRunningProvider ?? {
+            NSWorkspace.shared.runningApplications.contains {
+                $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier
+            }
         }
         super.init()
     }
@@ -63,10 +87,10 @@ final class StatusBarController: NSObject {
         menu.addItem(headerItem(title: "GatherApps"))
         menu.addItem(.separator())
 
-        let runningBundleIdentifiers = Set(runningAppProvider().map(\.bundleIdentifier))
+        let runningAppIdentifiers = Set(runningAppProvider().map(\.id))
         let groupItems = StatusBarMenuModel.groupItems(
             for: store.groups,
-            runningBundleIdentifiers: runningBundleIdentifiers
+            runningAppIdentifiers: runningAppIdentifiers
         )
         if groupItems.isEmpty {
             let emptyItem = NSMenuItem(title: "No Groups", action: nil, keyEquivalent: "")
@@ -147,14 +171,10 @@ final class StatusBarController: NSObject {
     }
 
     private func windowHelperStatusTitle() -> String {
-        switch SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status {
-        case .enabled:
-            return "Running"
-        case .requiresApproval:
-            return "Needs Approval"
-        default:
-            return "Unavailable"
-        }
+        StatusBarWindowHelperStatus.title(
+            serviceStatus: SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status,
+            isHelperRunning: windowHelperRunningProvider()
+        )
     }
 
     private func accessibilityStatusTitle() -> String {

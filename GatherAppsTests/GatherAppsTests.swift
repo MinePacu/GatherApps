@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import XCTest
 @testable import GatherApps
 
@@ -109,6 +110,37 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertTrue(group.launcherShowsGatherAppsWindow)
     }
 
+    func testGroupedAppDecodesLegacyBundleAppAsBundleTarget() throws {
+        let json = """
+        {
+          "bundleIdentifier": "com.example.Legacy",
+          "name": "Legacy",
+          "appPath": "/Applications/Legacy.app"
+        }
+        """
+
+        let app = try JSONDecoder().decode(GroupedApp.self, from: Data(json.utf8))
+
+        XCTAssertEqual(app.kind, .bundle)
+        XCTAssertEqual(app.id, "com.example.Legacy")
+        XCTAssertEqual(app.bundleIdentifier, "com.example.Legacy")
+        XCTAssertEqual(app.appPath, "/Applications/Legacy.app")
+        XCTAssertNil(app.executablePath)
+    }
+
+    func testExecutableGroupedAppUsesExecutablePathAsStableID() {
+        let app = GroupedApp(
+            executablePath: "/opt/homebrew/bin/scrcpy",
+            name: "scrcpy",
+            appPath: nil
+        )
+
+        XCTAssertEqual(app.kind, .executable)
+        XCTAssertEqual(app.id, "executable:/opt/homebrew/bin/scrcpy")
+        XCTAssertEqual(app.bundleIdentifier, "executable:/opt/homebrew/bin/scrcpy")
+        XCTAssertEqual(app.executablePath, "/opt/homebrew/bin/scrcpy")
+    }
+
     func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() throws {
         let groupID = UUID()
         let group = AppGroup(
@@ -137,15 +169,50 @@ final class GatherAppsTests: XCTestCase {
 
         store.activate(groupID: groupID)
 
-        XCTAssertEqual(activationService.requestedBundleIdentifiers, [
+        XCTAssertEqual(activationService.requestedApps.map(\.id), [
             "com.example.Third",
             "com.example.Second",
             "com.example.First"
         ])
         XCTAssertEqual(store.lastActivationResults, [
-            .success(appName: "com.example.First"),
-            .success(appName: "com.example.Second"),
-            .success(appName: "com.example.Third")
+            .success(appName: "First"),
+            .success(appName: "Second"),
+            .success(appName: "Third")
+        ])
+    }
+
+    func testGroupActivationActivatesExecutableTargets() throws {
+        let groupID = UUID()
+        let executable = GroupedApp(
+            executablePath: "/opt/homebrew/bin/scrcpy",
+            name: "scrcpy",
+            appPath: nil
+        )
+        let group = AppGroup(
+            id: groupID,
+            name: "Device",
+            apps: [executable],
+            iconFileName: "existing-icon.icns"
+        )
+        let testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GatherAppsExecutableActivationTests-\(UUID().uuidString)", isDirectory: true)
+        let groupsFileURL = testDirectory.appendingPathComponent("groups.json")
+        defer {
+            try? FileManager.default.removeItem(at: testDirectory)
+        }
+        try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode([group]).write(to: groupsFileURL, options: .atomic)
+        let activationService = StubAppActivationService()
+        let store = AppGroupStore(
+            groupsFileURL: groupsFileURL,
+            activationService: activationService
+        )
+
+        store.activate(groupID: groupID)
+
+        XCTAssertEqual(activationService.requestedApps, [executable])
+        XCTAssertEqual(store.lastActivationResults, [
+            .success(appName: "scrcpy")
         ])
     }
 
@@ -215,7 +282,7 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertTrue(gitLabCI.contains("reports:"))
         XCTAssertTrue(gitLabCI.contains("junit: TestReports/junit.xml"))
         XCTAssertTrue(gitLabCI.contains("launcher-integration-test:"))
-        XCTAssertTrue(gitLabCI.contains("allow_failure: true"))
+        XCTAssertTrue(gitLabCI.contains("allow_failure: false"))
         XCTAssertTrue(gitLabCI.contains("codequality: CodeQuality/gl-code-quality-report.json"))
         XCTAssertTrue(gitLabCI.contains("template: Jobs/SAST.gitlab-ci.yml"))
         XCTAssertTrue(gitLabCI.contains("template: Jobs/Secret-Detection.gitlab-ci.yml"))
@@ -228,7 +295,7 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(WindowHelperConfiguration.loginItemIdentifier, "com.minepacu.GatherApps.WindowHelper")
     }
 
-    func testRunningAppServiceReturnsOneAppPerBundleIdentifier() {
+    func testRunningAppServiceReturnsOneAppPerTargetIdentifier() {
         let duplicateBundleID = "com.apple.quicklook.QuickLookUIService"
         let apps = [
             RunningAppInfo(
@@ -245,15 +312,82 @@ final class GatherAppsTests: XCTestCase {
                 bundleIdentifier: duplicateBundleID,
                 name: "Quick Look",
                 appURL: URL(fileURLWithPath: "/System/Library/CoreServices/QuickLookUIService.app")
+            ),
+            RunningAppInfo(
+                executablePath: "/opt/homebrew/bin/scrcpy",
+                name: "scrcpy"
+            ),
+            RunningAppInfo(
+                executablePath: "/opt/homebrew/bin/scrcpy",
+                name: "scrcpy"
             )
         ]
 
         let uniqueApps = RunningAppService.uniqueApps(apps)
 
-        XCTAssertEqual(uniqueApps.map(\.bundleIdentifier), [
+        XCTAssertEqual(uniqueApps.map(\.id), [
             duplicateBundleID,
+            "executable:/opt/homebrew/bin/scrcpy",
             "com.apple.TextEdit"
         ])
+    }
+
+    func testRunningAppServiceBuildsExecutableAppsFromVisibleNonBundleWindows() {
+        let windows: [[String: Any]] = [
+            [
+                kCGWindowOwnerName as String: "scrcpy",
+                kCGWindowOwnerPID as String: NSNumber(value: 1234),
+                kCGWindowLayer as String: NSNumber(value: 0)
+            ],
+            [
+                kCGWindowOwnerName as String: "Menu Extra",
+                kCGWindowOwnerPID as String: NSNumber(value: 5678),
+                kCGWindowLayer as String: NSNumber(value: 25)
+            ],
+            [
+                kCGWindowOwnerName as String: "TextEdit",
+                kCGWindowOwnerPID as String: NSNumber(value: 9999),
+                kCGWindowLayer as String: NSNumber(value: 0)
+            ]
+        ]
+
+        let apps = RunningAppService.executableApps(
+            from: windows,
+            excludingProcessIDs: [9999],
+            executablePathForProcessID: { processID in
+                processID == 1234 ? "/opt/homebrew/bin/scrcpy" : nil
+            }
+        )
+
+        XCTAssertEqual(apps, [
+            RunningAppInfo(
+                executablePath: "/opt/homebrew/bin/scrcpy",
+                name: "scrcpy",
+                processIdentifier: 1234
+            )
+        ])
+    }
+
+    func testRunningAppServiceOnlyExcludesBundleBackedWorkspaceAppsFromExecutableDiscovery() {
+        let bundledApp = StubWorkspaceRunningApp(
+            processIdentifier: 1111,
+            bundleIdentifier: "com.apple.TextEdit",
+            localizedName: "TextEdit",
+            bundleURL: URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        )
+        let nonBundleApp = StubWorkspaceRunningApp(
+            processIdentifier: 2222,
+            bundleIdentifier: nil,
+            localizedName: "scrcpy",
+            bundleURL: URL(fileURLWithPath: "/opt/homebrew/Cellar/scrcpy/4.0/bin/scrcpy")
+        )
+
+        let excludedProcessIDs = RunningAppService.bundleBackedProcessIDs(from: [
+            bundledApp,
+            nonBundleApp
+        ])
+
+        XCTAssertEqual(excludedProcessIDs, [1111])
     }
 
     func testStatusBarMenuModelDisablesEmptyGroupsAndShowsRunningCounts() {
@@ -265,17 +399,45 @@ final class GatherAppsTests: XCTestCase {
                     GroupedApp(bundleIdentifier: "com.apple.Notes", name: "Notes", appPath: nil)
                 ]
             ),
+            AppGroup(
+                name: "Device",
+                apps: [
+                    GroupedApp(executablePath: "/opt/homebrew/bin/scrcpy", name: "scrcpy", appPath: nil)
+                ]
+            ),
             AppGroup(name: "Empty")
         ]
 
         let items = StatusBarMenuModel.groupItems(
             for: groups,
-            runningBundleIdentifiers: ["com.apple.TextEdit"]
+            runningAppIdentifiers: [
+                "com.apple.TextEdit",
+                "executable:/opt/homebrew/bin/scrcpy"
+            ]
         )
 
-        XCTAssertEqual(items.map(\.title), ["Activate Writing", "Activate Empty"])
-        XCTAssertEqual(items.map(\.runningCountTitle), ["1/2 running", "0/0 running"])
-        XCTAssertEqual(items.map(\.isEnabled), [true, false])
+        XCTAssertEqual(items.map(\.title), ["Activate Writing", "Activate Device", "Activate Empty"])
+        XCTAssertEqual(items.map(\.runningCountTitle), ["1/2 running", "1/1 running", "0/0 running"])
+        XCTAssertEqual(items.map(\.isEnabled), [true, true, false])
+    }
+
+    func testStatusBarWindowHelperStatusShowsRunningOnlyWhenHelperProcessIsRunning() {
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: true),
+            "Running"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: false),
+            "Not Running"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .requiresApproval, isHelperRunning: true),
+            "Needs Approval"
+        )
+        XCTAssertEqual(
+            StatusBarWindowHelperStatus.title(serviceStatus: .notFound, isHelperRunning: false),
+            "Unavailable"
+        )
     }
 
     private static func localizationKeys(at url: URL) throws -> Set<String> {
@@ -285,4 +447,11 @@ final class GatherAppsTests: XCTestCase {
         return Set(strings.keys)
     }
 
+}
+
+private struct StubWorkspaceRunningApp: WorkspaceRunningApplication {
+    let processIdentifier: pid_t
+    let bundleIdentifier: String?
+    let localizedName: String?
+    let bundleURL: URL?
 }
