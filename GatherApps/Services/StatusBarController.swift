@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import ServiceManagement
 
 struct StatusBarActions {
@@ -25,13 +24,21 @@ enum StatusBarWindowHelperStatus {
     }
 }
 
+enum StatusBarAccessibilityStatus {
+    static func title(runtimeInfo: WindowHelperRuntimeInfo?) -> String {
+        guard let runtimeInfo else { return "Unavailable" }
+        return runtimeInfo.accessibilityTrusted ? "Granted" : "Needs Permission"
+    }
+}
+
 @MainActor
 final class StatusBarController: NSObject {
     private let store: AppGroupStore
     private let settings: MenuBarSettings
     private let actions: StatusBarActions
     private let runningAppProvider: () -> [RunningAppInfo]
-    private let windowHelperRunningProvider: () -> Bool
+    private let windowHelperRegistrationService: WindowHelperRegistrationProviding
+    private let windowHelperClient: WindowHelperClient
     private var statusItem: NSStatusItem?
 
     init(
@@ -39,7 +46,8 @@ final class StatusBarController: NSObject {
         settings: MenuBarSettings,
         actions: StatusBarActions,
         runningAppProvider: (() -> [RunningAppInfo])? = nil,
-        windowHelperRunningProvider: (() -> Bool)? = nil
+        windowHelperRegistrationService: WindowHelperRegistrationProviding? = nil,
+        windowHelperClient: WindowHelperClient? = nil
     ) {
         self.store = store
         self.settings = settings
@@ -47,11 +55,10 @@ final class StatusBarController: NSObject {
         self.runningAppProvider = runningAppProvider ?? {
             RunningAppService().fetchRunningApps()
         }
-        self.windowHelperRunningProvider = windowHelperRunningProvider ?? {
-            NSWorkspace.shared.runningApplications.contains {
-                $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier
-            }
-        }
+        self.windowHelperRegistrationService = windowHelperRegistrationService
+            ?? LoginItemWindowHelperRegistrationService()
+        self.windowHelperClient = windowHelperClient
+            ?? NotificationWindowHelperClient(timeout: 0.25)
         super.init()
     }
 
@@ -159,9 +166,24 @@ final class StatusBarController: NSObject {
     }
 
     private func windowRaisingMenuItem() -> NSMenuItem {
+        let runtimeInfo: WindowHelperRuntimeInfo?
+        switch windowHelperRegistrationService.ensureRegistered() {
+        case .available:
+            runtimeInfo = windowHelperClient.probe()
+        case .unavailable:
+            runtimeInfo = nil
+        }
+
         let submenu = NSMenu(title: "Window Raising")
-        submenu.addItem(headerItem(title: "Helper: \(windowHelperStatusTitle())"))
-        submenu.addItem(headerItem(title: "Accessibility: \(accessibilityStatusTitle())"))
+        submenu.addItem(headerItem(
+            title: "Helper: \(windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil))"
+        ))
+        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
+        submenu.addItem(headerItem(title: "Accessibility: \(accessibilityTitle)"))
+        submenu.addItem(actionItem(
+            title: "Request Accessibility Permission",
+            action: #selector(requestAccessibilityPermission)
+        ))
         submenu.addItem(actionItem(title: "Open Accessibility Settings", action: #selector(openAccessibilitySettings)))
         submenu.addItem(actionItem(title: "Restart Window Helper", action: #selector(restartWindowHelper)))
 
@@ -170,15 +192,11 @@ final class StatusBarController: NSObject {
         return item
     }
 
-    private func windowHelperStatusTitle() -> String {
+    private func windowHelperStatusTitle(isHelperRunning: Bool) -> String {
         StatusBarWindowHelperStatus.title(
             serviceStatus: SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status,
-            isHelperRunning: windowHelperRunningProvider()
+            isHelperRunning: isHelperRunning
         )
-    }
-
-    private func accessibilityStatusTitle() -> String {
-        AXIsProcessTrusted() ? "Granted" : "Needs Permission"
     }
 
     @objc private func activateGroup(_ sender: NSMenuItem) {
@@ -232,19 +250,26 @@ final class StatusBarController: NSObject {
         }
     }
 
-    @objc private func restartWindowHelper() {
-        NSWorkspace.shared.runningApplications
-            .filter { $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier }
-            .forEach { $0.terminate() }
-
-        let deadline = Date().addingTimeInterval(2)
-        while NSWorkspace.shared.runningApplications.contains(where: {
-            $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier
-        }), Date() < deadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+    @objc private func requestAccessibilityPermission() {
+        switch windowHelperRegistrationService.ensureRegistered() {
+        case .available:
+            if windowHelperClient.requestAccessibilityPermission() == nil {
+                store.lastErrorMessage = L10n.format(
+                    "activation.helperUnavailable",
+                    L10n.string("activation.reason.helperDidNotRespond")
+                )
+            }
+            openAccessibilitySettings()
+        case .unavailable(let reason):
+            store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
         }
+        refresh()
+    }
 
-        _ = LoginItemWindowHelperRegistrationService().ensureRegistered()
+    @objc private func restartWindowHelper() {
+        if case .unavailable(let reason) = windowHelperRegistrationService.restart() {
+            store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
+        }
         refresh()
     }
 

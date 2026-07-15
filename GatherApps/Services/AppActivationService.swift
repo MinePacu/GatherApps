@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import ServiceManagement
 
 protocol ActivatableApplication {
     var bundleIdentifier: String? { get }
@@ -36,15 +35,36 @@ enum WindowHelperRegistrationResult: Equatable {
 
 protocol WindowHelperRegistrationProviding {
     func ensureRegistered() -> WindowHelperRegistrationResult
+    func restart() -> WindowHelperRegistrationResult
+}
+
+extension WindowHelperRegistrationProviding {
+    func restart() -> WindowHelperRegistrationResult {
+        ensureRegistered()
+    }
 }
 
 protocol WindowHelperClient {
     func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult
+    func probe() -> WindowHelperRuntimeInfo?
+    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo?
+}
+
+extension WindowHelperClient {
+    func probe() -> WindowHelperRuntimeInfo? { nil }
+    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo? { nil }
 }
 
 enum WindowHelperConfiguration {
     static let loginItemIdentifier = "com.minepacu.GatherApps.WindowHelper"
     static let notificationNamespace = loginItemIdentifier
+    static let protocolVersion = 1
+}
+
+struct WindowHelperRuntimeInfo: Equatable {
+    let bundleURL: URL
+    let protocolVersion: Int
+    let accessibilityTrusted: Bool
 }
 
 struct AppActivationService: AppActivationProviding {
@@ -143,98 +163,7 @@ private struct NSWorkspaceApplicationProvider: ApplicationProviding {
     }
 }
 
-struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProviding {
-    private let embeddedLauncher = EmbeddedWindowHelperLauncher()
-
-    func ensureRegistered() -> WindowHelperRegistrationResult {
-        let service = SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier)
-
-        switch service.status {
-        case .enabled:
-            return .available
-        case .notRegistered:
-            do {
-                try service.register()
-                if service.status == .enabled {
-                    return .available
-                }
-                return embeddedLauncher.launchIfNeeded(
-                    fallbackReason: L10n.string("activation.reason.loginItemApprovalPending")
-                )
-            } catch {
-                return embeddedLauncher.launchIfNeeded(fallbackReason: error.localizedDescription)
-            }
-        case .requiresApproval:
-            return embeddedLauncher.launchIfNeeded(
-                fallbackReason: L10n.string("activation.reason.loginItemRequiresApproval")
-            )
-        case .notFound:
-            return embeddedLauncher.launchIfNeeded(fallbackReason: WindowHelperBundleDiagnostics.notFoundReason())
-        @unknown default:
-            return embeddedLauncher.launchIfNeeded(
-                fallbackReason: L10n.string("activation.reason.loginItemUnknownStatus")
-            )
-        }
-    }
-}
-
-private struct EmbeddedWindowHelperLauncher {
-    func launchIfNeeded(fallbackReason: String) -> WindowHelperRegistrationResult {
-        if isHelperRunning {
-            return .available
-        }
-
-        let helperURL = WindowHelperBundleDiagnostics.helperURL
-        guard FileManager.default.fileExists(atPath: helperURL.path) else {
-            return .unavailable(
-                reason: L10n.format("activation.reason.embeddedHelperMissing", fallbackReason, helperURL.path)
-            )
-        }
-
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
-        configuration.addsToRecentItems = false
-        var launchError: Error?
-        var didComplete = false
-
-        NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) { _, error in
-            launchError = error
-            didComplete = true
-        }
-
-        let launchDeadline = Date().addingTimeInterval(2)
-        while !didComplete, Date() < launchDeadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-        }
-
-        if let launchError {
-            return .unavailable(
-                reason: L10n.format(
-                    "activation.reason.helperLaunchFailed",
-                    fallbackReason,
-                    launchError.localizedDescription
-                )
-            )
-        }
-
-        let runningDeadline = Date().addingTimeInterval(2)
-        while !isHelperRunning, Date() < runningDeadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-        }
-
-        return isHelperRunning
-            ? .available
-            : .unavailable(reason: L10n.format("activation.reason.helperLaunchDidNotStart", fallbackReason))
-    }
-
-    private var isHelperRunning: Bool {
-        NSWorkspace.shared.runningApplications.contains {
-            $0.bundleIdentifier == WindowHelperConfiguration.loginItemIdentifier
-        }
-    }
-}
-
-private enum WindowHelperBundleDiagnostics {
+enum WindowHelperBundleDiagnostics {
     static var helperURL: URL {
         Bundle.main.bundleURL
             .appendingPathComponent("Contents", isDirectory: true)
@@ -273,6 +202,14 @@ private enum WindowHelperBundleDiagnostics {
         ].joined(separator: " ")
     }
 
+    static func urlsReferToSameBundle(_ lhs: URL, _ rhs: URL) -> Bool {
+        canonicalURL(lhs) == canonicalURL(rhs)
+    }
+
+    static func canonicalURL(_ url: URL) -> URL {
+        url.standardizedFileURL.resolvingSymlinksInPath()
+    }
+
     private static func writeDiagnostics(_ diagnostics: String) -> String? {
         do {
             let fileURL = try AppSupportPaths.windowHelperDiagnosticsFileURL
@@ -284,25 +221,56 @@ private enum WindowHelperBundleDiagnostics {
     }
 }
 
-private enum WindowHelperNotification {
-    static let request = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.request")
-    static let response = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.response")
+enum WindowHelperOperation: String {
+    case raiseWindows
+    case probe
+    case requestAccessibilityPermission
+}
+
+enum WindowHelperNotification {
+    static let request = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).request")
+    static let response = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).response")
     static let bundleIdentifierKey = "bundleIdentifier"
     static let requestIDKey = "requestID"
+    static let operationKey = "operation"
     static let appNameKey = "appName"
     static let statusKey = "status"
     static let raisedWindowCountKey = "raisedWindowCount"
     static let messageKey = "message"
+    static let helperBundlePathKey = "helperBundlePath"
+    static let protocolVersionKey = "protocolVersion"
+    static let accessibilityTrustedKey = "accessibilityTrusted"
 }
 
-private struct NotificationWindowHelperClient: WindowHelperClient {
+struct NotificationWindowHelperClient: WindowHelperClient {
     private let timeout: TimeInterval
+    private let expectedHelperURL: URL
 
-    init(timeout: TimeInterval = 2) {
+    init(
+        timeout: TimeInterval = 2,
+        expectedHelperURL: URL = WindowHelperBundleDiagnostics.helperURL
+    ) {
         self.timeout = timeout
+        self.expectedHelperURL = expectedHelperURL
     }
 
     func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+        send(operation: .raiseWindows, bundleIdentifier: bundleIdentifier)?.activationResult
+            ?? .helperUnavailable(reason: L10n.string("activation.reason.helperDidNotRespond"))
+    }
+
+    func probe() -> WindowHelperRuntimeInfo? {
+        send(operation: .probe)?.runtimeInfo
+    }
+
+    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo? {
+        send(operation: .requestAccessibilityPermission)?.runtimeInfo
+    }
+
+    private func send(
+        operation: WindowHelperOperation,
+        bundleIdentifier: String? = nil
+    ) -> WindowHelperProcessResult? {
         let center = DistributedNotificationCenter.default()
         let requestID = UUID().uuidString
         var response: WindowHelperProcessResult?
@@ -319,20 +287,35 @@ private struct NotificationWindowHelperClient: WindowHelperClient {
                 return
             }
 
-            response = WindowHelperProcessResult(userInfo: userInfo)
+            let candidate = WindowHelperProcessResult(userInfo: userInfo)
+            guard
+                candidate.protocolVersion == WindowHelperConfiguration.protocolVersion,
+                let helperBundleURL = candidate.helperBundleURL,
+                WindowHelperBundleDiagnostics.urlsReferToSameBundle(helperBundleURL, expectedHelperURL)
+            else {
+                return
+            }
+
+            response = candidate
         }
 
         defer {
             center.removeObserver(observer)
         }
 
+        var userInfo: [String: Any] = [
+            WindowHelperNotification.requestIDKey: requestID,
+            WindowHelperNotification.operationKey: operation.rawValue,
+            WindowHelperNotification.protocolVersionKey: WindowHelperConfiguration.protocolVersion
+        ]
+        if let bundleIdentifier {
+            userInfo[WindowHelperNotification.bundleIdentifierKey] = bundleIdentifier
+        }
+
         center.postNotificationName(
             WindowHelperNotification.request,
             object: nil,
-            userInfo: [
-                WindowHelperNotification.requestIDKey: requestID,
-                WindowHelperNotification.bundleIdentifierKey: bundleIdentifier
-            ],
+            userInfo: userInfo,
             deliverImmediately: true
         )
 
@@ -341,18 +324,19 @@ private struct NotificationWindowHelperClient: WindowHelperClient {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
 
-        return response?.activationResult ?? .helperUnavailable(
-            reason: L10n.string("activation.reason.helperDidNotRespond")
-        )
+        return response
     }
 }
 
-private struct WindowHelperProcessResult {
+struct WindowHelperProcessResult {
     let bundleIdentifier: String
     let appName: String?
     let status: String
     let raisedWindowCount: Int?
     let message: String?
+    let helperBundlePath: String?
+    let protocolVersion: Int
+    let accessibilityTrusted: Bool?
 
     init(userInfo: [AnyHashable: Any]) {
         bundleIdentifier = userInfo[WindowHelperNotification.bundleIdentifierKey] as? String ?? ""
@@ -360,6 +344,22 @@ private struct WindowHelperProcessResult {
         status = userInfo[WindowHelperNotification.statusKey] as? String ?? "helperUnavailable"
         raisedWindowCount = userInfo[WindowHelperNotification.raisedWindowCountKey] as? Int
         message = userInfo[WindowHelperNotification.messageKey] as? String
+        helperBundlePath = userInfo[WindowHelperNotification.helperBundlePathKey] as? String
+        protocolVersion = userInfo[WindowHelperNotification.protocolVersionKey] as? Int ?? 0
+        accessibilityTrusted = userInfo[WindowHelperNotification.accessibilityTrustedKey] as? Bool
+    }
+
+    var helperBundleURL: URL? {
+        helperBundlePath.map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
+
+    var runtimeInfo: WindowHelperRuntimeInfo? {
+        guard let helperBundleURL, let accessibilityTrusted else { return nil }
+        return WindowHelperRuntimeInfo(
+            bundleURL: helperBundleURL,
+            protocolVersion: protocolVersion,
+            accessibilityTrusted: accessibilityTrusted
+        )
     }
 
     var activationResult: WindowHelperActivationResult {

@@ -8,21 +8,33 @@ struct HelperResult {
     let status: String
     let raisedWindowCount: Int?
     let message: String?
+    let accessibilityTrusted: Bool
 }
 
 private enum WindowHelperConfiguration {
     static let notificationNamespace = "com.minepacu.GatherApps.WindowHelper"
+    static let protocolVersion = 1
+}
+
+private enum WindowHelperOperation: String {
+    case raiseWindows
+    case probe
+    case requestAccessibilityPermission
 }
 
 private enum WindowHelperNotification {
-    static let request = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.request")
-    static let response = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).raiseWindows.response")
+    static let request = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).request")
+    static let response = Notification.Name("\(WindowHelperConfiguration.notificationNamespace).response")
     static let bundleIdentifierKey = "bundleIdentifier"
     static let requestIDKey = "requestID"
+    static let operationKey = "operation"
     static let appNameKey = "appName"
     static let statusKey = "status"
     static let raisedWindowCountKey = "raisedWindowCount"
     static let messageKey = "message"
+    static let helperBundlePathKey = "helperBundlePath"
+    static let protocolVersionKey = "protocolVersion"
+    static let accessibilityTrustedKey = "accessibilityTrusted"
 }
 
 private final class HelperAppDelegate: NSObject, NSApplicationDelegate {
@@ -51,12 +63,26 @@ private final class NotificationWindowHelperServer {
         guard
             let userInfo = notification.userInfo,
             let requestID = userInfo[WindowHelperNotification.requestIDKey] as? String,
-            let bundleIdentifier = userInfo[WindowHelperNotification.bundleIdentifierKey] as? String
+            userInfo[WindowHelperNotification.protocolVersionKey] as? Int == WindowHelperConfiguration.protocolVersion,
+            let operationValue = userInfo[WindowHelperNotification.operationKey] as? String,
+            let operation = WindowHelperOperation(rawValue: operationValue)
         else {
             return
         }
 
-        let result = WindowRaiser.raiseWindows(bundleIdentifier: bundleIdentifier)
+        let result: HelperResult
+        switch operation {
+        case .raiseWindows:
+            guard let bundleIdentifier = userInfo[WindowHelperNotification.bundleIdentifierKey] as? String else {
+                return
+            }
+            result = WindowRaiser.raiseWindows(bundleIdentifier: bundleIdentifier)
+        case .probe:
+            result = WindowRaiser.runtimeResult(status: "ready")
+        case .requestAccessibilityPermission:
+            result = WindowRaiser.requestAccessibilityPermission()
+        }
+
         center.postNotificationName(
             WindowHelperNotification.response,
             object: nil,
@@ -68,7 +94,7 @@ private final class NotificationWindowHelperServer {
 
 private struct WindowRaiser {
     static func raiseWindows(bundleIdentifier: String) -> HelperResult {
-        guard isAccessibilityTrusted else {
+        guard AXIsProcessTrusted() else {
             return accessibilityPermissionMissingResult(bundleIdentifier: bundleIdentifier)
         }
 
@@ -110,7 +136,35 @@ private struct WindowRaiser {
             appName: appName,
             status: raisedWindowCount > 0 ? "raised" : "raiseFailed",
             raisedWindowCount: raisedWindowCount,
-            message: raisedWindowCount > 0 ? nil : "No windows accepted AXRaise."
+            message: raisedWindowCount > 0 ? nil : "No windows accepted AXRaise.",
+            accessibilityTrusted: true
+        )
+    }
+
+    static func runtimeResult(status: String) -> HelperResult {
+        HelperResult(
+            bundleIdentifier: "",
+            appName: nil,
+            status: status,
+            raisedWindowCount: nil,
+            message: nil,
+            accessibilityTrusted: AXIsProcessTrusted()
+        )
+    }
+
+    static func requestAccessibilityPermission() -> HelperResult {
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+        let isTrusted = AXIsProcessTrustedWithOptions(options)
+
+        return HelperResult(
+            bundleIdentifier: "",
+            appName: nil,
+            status: isTrusted ? "accessibilityGranted" : "accessibilityPermissionMissing",
+            raisedWindowCount: nil,
+            message: nil,
+            accessibilityTrusted: isTrusted
         )
     }
 
@@ -120,7 +174,8 @@ private struct WindowRaiser {
             appName: nil,
             status: "accessibilityPermissionMissing",
             raisedWindowCount: nil,
-            message: "Accessibility permission is required for GatherAppsWindowHelper."
+            message: "Accessibility permission is required for GatherAppsWindowHelper.",
+            accessibilityTrusted: false
         )
     }
 
@@ -130,7 +185,8 @@ private struct WindowRaiser {
             appName: nil,
             status: "appNotRunning",
             raisedWindowCount: nil,
-            message: nil
+            message: nil,
+            accessibilityTrusted: true
         )
     }
 
@@ -144,7 +200,8 @@ private struct WindowRaiser {
             appName: appName,
             status: "raiseFailed",
             raisedWindowCount: nil,
-            message: "Unable to read AXWindows: \(copyResult.rawValue)"
+            message: "Unable to read AXWindows: \(copyResult.rawValue)",
+            accessibilityTrusted: true
         )
     }
 
@@ -154,16 +211,9 @@ private struct WindowRaiser {
             appName: appName,
             status: "noWindowsFound",
             raisedWindowCount: 0,
-            message: nil
+            message: nil,
+            accessibilityTrusted: true
         )
-    }
-
-    static var isAccessibilityTrusted: Bool {
-        let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
-
-        return AXIsProcessTrustedWithOptions(options)
     }
 }
 
@@ -172,7 +222,10 @@ private extension HelperResult {
         var result: [String: Any] = [
             WindowHelperNotification.requestIDKey: requestID,
             WindowHelperNotification.bundleIdentifierKey: bundleIdentifier,
-            WindowHelperNotification.statusKey: status
+            WindowHelperNotification.statusKey: status,
+            WindowHelperNotification.helperBundlePathKey: Bundle.main.bundleURL.path,
+            WindowHelperNotification.protocolVersionKey: WindowHelperConfiguration.protocolVersion,
+            WindowHelperNotification.accessibilityTrustedKey: accessibilityTrusted
         ]
 
         if let appName {

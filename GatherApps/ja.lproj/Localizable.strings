@@ -1,4 +1,4 @@
-"activation.accessibilityPermissionMissing" = "%@のウインドウを前面に表示するには、GatherAppsWindowHelperのアクセシビリティ権限が必要です。";
+"activation.accessibilityPermissionMissing" = "%@のウインドウを前面に表示するには、GatherAppsWindowHelperのアクセシビリティ権限が必要です。GatherAppsメニューから「Window Raising」>「Request Accessibility Permission」を選択してください。";
 "activation.activationFailed" = "%@をアクティブにできませんでした。";
 "activation.appNotRunning" = "実行中のアプリが見つかりません。";
 "activation.helperUnavailable" = "ウインドウ制御ヘルパーを起動できませんでした。%@";

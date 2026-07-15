@@ -1,4 +1,4 @@
-"activation.accessibilityPermissionMissing" = "%@ needs Accessibility permission for GatherAppsWindowHelper to bring its windows forward.";
+"activation.accessibilityPermissionMissing" = "%@ needs Accessibility permission for GatherAppsWindowHelper. Choose Window Raising > Request Accessibility Permission from the GatherApps menu.";
 "activation.activationFailed" = "Could not activate %@.";
 "activation.appNotRunning" = "No running app was found.";
 "activation.helperUnavailable" = "Could not start the window control helper. %@";
