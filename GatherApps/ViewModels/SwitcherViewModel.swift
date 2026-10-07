@@ -3,12 +3,13 @@ import Foundation
 
 @MainActor
 final class SwitcherViewModel: ObservableObject {
-    @Published private(set) var selectedIndex = 0
+    @Published private var selectedGroupID: AppGroup.ID?
     @Published private var runningAppIdentifiers: Set<String> = []
 
     private let store: AppGroupStore
     private let runningAppService: RunningAppService
     private var storeCancellable: AnyCancellable?
+    private var lastSelectedIndex = 0
     var onDismiss: (() -> Void)?
 
     init(
@@ -31,19 +32,29 @@ final class SwitcherViewModel: ObservableObject {
         store.groups
     }
 
+    var selectedIndex: Int {
+        if let selectedGroupID, let index = groups.firstIndex(where: { $0.id == selectedGroupID }) {
+            return index
+        }
+        guard !groups.isEmpty else { return 0 }
+        return min(lastSelectedIndex, groups.count - 1)
+    }
+
     func refresh() {
-        runningAppIdentifiers = Set(runningAppService.fetchRunningApps().map(\.id))
+        runningAppIdentifiers = Set(
+            runningAppService.fetchRunningApps(includingOffscreenExecutableWindows: true).map(\.id)
+        )
         clampSelection()
     }
 
     func moveSelectionUp() {
         guard !groups.isEmpty else { return }
-        selectedIndex = max(selectedIndex - 1, 0)
+        setSelectedIndex(max(selectedIndex - 1, 0))
     }
 
     func moveSelectionDown() {
         guard !groups.isEmpty else { return }
-        selectedIndex = min(selectedIndex + 1, groups.count - 1)
+        setSelectedIndex(min(selectedIndex + 1, groups.count - 1))
     }
 
     func activateSelectedGroup() {
@@ -67,7 +78,7 @@ final class SwitcherViewModel: ObservableObject {
 
     func select(_ group: AppGroup) {
         guard let index = groups.firstIndex(where: { $0.id == group.id }) else { return }
-        selectedIndex = index
+        setSelectedIndex(index)
     }
 
     func runningAppCount(for group: AppGroup) -> Int {
@@ -81,10 +92,16 @@ final class SwitcherViewModel: ObservableObject {
     }
 
     private func clampSelection() {
-        if groups.isEmpty {
-            selectedIndex = 0
-        } else {
-            selectedIndex = min(selectedIndex, groups.count - 1)
+        setSelectedIndex(selectedIndex)
+    }
+
+    private func setSelectedIndex(_ index: Int) {
+        guard groups.indices.contains(index) else {
+            selectedGroupID = nil
+            lastSelectedIndex = 0
+            return
         }
+        selectedGroupID = groups[index].id
+        lastSelectedIndex = index
     }
 }

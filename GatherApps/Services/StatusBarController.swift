@@ -64,7 +64,7 @@ final class StatusBarController: NSObject {
         self.settings = settings
         self.actions = actions
         self.runningAppProvider = runningAppProvider ?? {
-            RunningAppService().fetchRunningApps()
+            RunningAppService().fetchRunningApps(includingOffscreenExecutableWindows: true)
         }
         self.windowHelperRegistrationService = windowHelperRegistrationService
             ?? LoginItemWindowHelperRegistrationService()

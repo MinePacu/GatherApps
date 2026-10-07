@@ -232,7 +232,10 @@ private struct NSWorkspaceApplicationProvider: ApplicationProviding {
 
     func runningApplication(executablePath: String) -> ActivatableApplication? {
         let standardizedPath = URL(fileURLWithPath: executablePath).standardizedFileURL.path
-        let executableApps = RunningAppService.executableAppsFromVisibleWindows(excludingProcessIDs: [])
+        let executableApps = RunningAppService.executableAppsFromVisibleWindows(
+            excludingProcessIDs: [],
+            includingOffscreenWindows: true
+        )
         guard
             let runningApp = executableApps.first(where: {
                 $0.executableURL?.path == standardizedPath
