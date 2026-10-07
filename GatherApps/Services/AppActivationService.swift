@@ -18,6 +18,13 @@ protocol ApplicationProviding {
 protocol AppActivationProviding {
     func activate(_ app: GroupedApp) -> ActivationResult
     func activate(bundleIdentifier: String) -> ActivationResult
+    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult]
+}
+
+extension AppActivationProviding {
+    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult] {
+        apps.map { activate($0) }
+    }
 }
 
 enum WindowHelperActivationResult: Equatable {
@@ -83,10 +90,35 @@ struct AppActivationService: AppActivationProviding {
         self.helperClient = helperClient
     }
 
+    /// Helper state shared across the apps of one activation request, so a
+    /// group checks registration once and stops waiting on an unresponsive helper.
+    private enum HelperAvailability {
+        case available
+        case unavailable(reason: String)
+    }
+
     func activate(_ app: GroupedApp) -> ActivationResult {
+        var helperAvailability: HelperAvailability?
+        return activate(app, helperAvailability: &helperAvailability)
+    }
+
+    func activate(bundleIdentifier: String) -> ActivationResult {
+        var helperAvailability: HelperAvailability?
+        return activate(bundleIdentifier: bundleIdentifier, helperAvailability: &helperAvailability)
+    }
+
+    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult] {
+        var helperAvailability: HelperAvailability?
+        return apps.map { activate($0, helperAvailability: &helperAvailability) }
+    }
+
+    private func activate(
+        _ app: GroupedApp,
+        helperAvailability: inout HelperAvailability?
+    ) -> ActivationResult {
         switch app.kind {
         case .bundle:
-            return activate(bundleIdentifier: app.bundleIdentifier)
+            return activate(bundleIdentifier: app.bundleIdentifier, helperAvailability: &helperAvailability)
         case .executable:
             guard let executablePath = app.executablePath else {
                 return .appNotRunning(bundleIdentifier: app.bundleIdentifier)
@@ -95,16 +127,18 @@ struct AppActivationService: AppActivationProviding {
         }
     }
 
-    func activate(bundleIdentifier: String) -> ActivationResult {
+    private func activate(
+        bundleIdentifier: String,
+        helperAvailability: inout HelperAvailability?
+    ) -> ActivationResult {
         guard let app = applicationProvider.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
         }
 
         let appName = app.localizedName ?? bundleIdentifier
-        switch helperRegistrationService.ensureRegistered() {
-        case .available:
-            break
-        case .unavailable(let reason):
+        resolveHelperAvailability(&helperAvailability)
+
+        if case .unavailable(let reason)? = helperAvailability {
             return fallbackActivation(
                 app,
                 appName: appName,
@@ -136,11 +170,23 @@ struct AppActivationService: AppActivationProviding {
                 failureResult: .windowRaiseFailed(appName: helperAppName)
             )
         case .helperUnavailable(let reason):
+            // Skip the IPC round-trip (and its timeout) for the rest of the group.
+            helperAvailability = .unavailable(reason: reason)
             return fallbackActivation(
                 app,
                 appName: appName,
                 failureResult: .helperUnavailable(reason: reason)
             )
+        }
+    }
+
+    private func resolveHelperAvailability(_ helperAvailability: inout HelperAvailability?) {
+        guard helperAvailability == nil else { return }
+        switch helperRegistrationService.ensureRegistered() {
+        case .available:
+            helperAvailability = .available
+        case .unavailable(let reason):
+            helperAvailability = .unavailable(reason: reason)
         }
     }
 

@@ -219,6 +219,138 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
     }
 
+    func testGroupActivationChecksHelperRegistrationOnce() {
+        let apps = makeRunningApps(count: 3, activationResult: false)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(
+            result: .raised(appName: "unused", raisedWindowCount: 1),
+            resultsByBundleIdentifier: [
+                "com.example.App0": .raised(appName: "Example 0", raisedWindowCount: 1),
+                "com.example.App1": .raised(appName: "Example 1", raisedWindowCount: 1),
+                "com.example.App2": .raised(appName: "Example 2", raisedWindowCount: 1)
+            ]
+        )
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: apps),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let results = service.activateGroup(makeGroupedApps(count: 3))
+
+        XCTAssertEqual(results, [
+            .success(appName: "Example 0"),
+            .success(appName: "Example 1"),
+            .success(appName: "Example 2")
+        ])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
+        XCTAssertEqual(
+            helperClient.requestedBundleIdentifiers,
+            ["com.example.App0", "com.example.App1", "com.example.App2"]
+        )
+        XCTAssertTrue(apps.allSatisfy { $0.activationOptions.isEmpty })
+    }
+
+    func testGroupActivationSkipsHelperAfterHelperStopsResponding() {
+        let apps = makeRunningApps(count: 3, activationResult: true)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .helperUnavailable(reason: "timeout"))
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: apps),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let results = service.activateGroup(makeGroupedApps(count: 3))
+
+        XCTAssertEqual(results, [
+            .success(appName: "Example 0"),
+            .success(appName: "Example 1"),
+            .success(appName: "Example 2")
+        ])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
+        XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App0"])
+        for app in apps {
+            XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+        }
+    }
+
+    func testGroupActivationUsesFallbackForAllAppsWhenRegistrationIsUnavailable() {
+        let apps = makeRunningApps(count: 3, activationResult: true)
+        let registrationService = StubWindowHelperRegistrationService(result: .unavailable(reason: "x"))
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "unused", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: apps),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let results = service.activateGroup(makeGroupedApps(count: 3))
+
+        XCTAssertEqual(results, [
+            .success(appName: "Example 0"),
+            .success(appName: "Example 1"),
+            .success(appName: "Example 2")
+        ])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
+        XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
+        for app in apps {
+            XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+        }
+    }
+
+    func testGroupActivationDoesNotCheckRegistrationWhenNoAppIsRunning() {
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "unused", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: []),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let results = service.activateGroup(makeGroupedApps(count: 2))
+
+        XCTAssertEqual(results, [
+            .appNotRunning(bundleIdentifier: "com.example.App0"),
+            .appNotRunning(bundleIdentifier: "com.example.App1")
+        ])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
+        XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
+    }
+
+    func testSingleActivationStillChecksRegistrationEachCall() {
+        let apps = makeRunningApps(count: 1, activationResult: false)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "Example 0", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: apps),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        _ = service.activate(bundleIdentifier: "com.example.App0")
+        _ = service.activate(bundleIdentifier: "com.example.App0")
+
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 2)
+        XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App0", "com.example.App0"])
+    }
+
+    private func makeRunningApps(count: Int, activationResult: Bool) -> [StubActivatableApplication] {
+        (0..<count).map { index in
+            StubActivatableApplication(
+                bundleIdentifier: "com.example.App\(index)",
+                localizedName: "Example \(index)",
+                processIdentifier: pid_t(1000 + index),
+                activationResult: activationResult
+            )
+        }
+    }
+
+    private func makeGroupedApps(count: Int) -> [GroupedApp] {
+        (0..<count).map { index in
+            GroupedApp(bundleIdentifier: "com.example.App\(index)", name: "Example \(index)", appPath: nil)
+        }
+    }
 }
 
 private final class StubActivatableApplication: ActivatableApplication {
@@ -249,17 +381,22 @@ private final class StubActivatableApplication: ActivatableApplication {
 }
 
 private final class StubApplicationProvider: ApplicationProviding {
-    let app: StubActivatableApplication?
+    let apps: [StubActivatableApplication]
     let executableApp: StubActivatableApplication?
     private(set) var requestedExecutablePaths: [String] = []
 
     init(app: StubActivatableApplication?, executableApp: StubActivatableApplication? = nil) {
-        self.app = app
+        self.apps = app.map { [$0] } ?? []
         self.executableApp = executableApp
     }
 
+    init(apps: [StubActivatableApplication]) {
+        self.apps = apps
+        self.executableApp = nil
+    }
+
     func runningApplication(bundleIdentifier: String) -> ActivatableApplication? {
-        app?.bundleIdentifier == bundleIdentifier ? app : nil
+        apps.first { $0.bundleIdentifier == bundleIdentifier }
     }
 
     func runningApplication(executablePath: String) -> ActivatableApplication? {
@@ -284,15 +421,20 @@ private final class StubWindowHelperRegistrationService: WindowHelperRegistratio
 
 private final class StubWindowHelperClient: WindowHelperClient {
     let result: WindowHelperActivationResult
+    let resultsByBundleIdentifier: [String: WindowHelperActivationResult]
     private(set) var requestedBundleIdentifiers: [String] = []
 
-    init(result: WindowHelperActivationResult) {
+    init(
+        result: WindowHelperActivationResult,
+        resultsByBundleIdentifier: [String: WindowHelperActivationResult] = [:]
+    ) {
         self.result = result
+        self.resultsByBundleIdentifier = resultsByBundleIdentifier
     }
 
     func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
         requestedBundleIdentifiers.append(bundleIdentifier)
-        return result
+        return resultsByBundleIdentifier[bundleIdentifier] ?? result
     }
 }
 

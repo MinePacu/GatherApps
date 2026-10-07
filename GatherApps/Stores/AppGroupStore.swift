@@ -115,9 +115,11 @@ final class AppGroupStore: ObservableObject {
     func activate(groupID: AppGroup.ID) {
         guard let group = groups.first(where: { $0.id == groupID }) else { return }
         var resultsByIdentifier: [String: ActivationResult] = [:]
+        let orderedApps = Self.frontmostActivationOrder(for: group)
+        let results = activationService.activateGroup(orderedApps)
 
-        for app in Self.frontmostActivationOrder(for: group) {
-            resultsByIdentifier[app.id] = activationService.activate(app)
+        for (app, result) in zip(orderedApps, results) {
+            resultsByIdentifier[app.id] = result
         }
 
         lastActivationResults = group.apps.compactMap {
