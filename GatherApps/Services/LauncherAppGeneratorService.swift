@@ -88,12 +88,30 @@ struct LauncherAppGeneratorService {
     func launcherURL(for group: AppGroup, destinationDirectory: URL? = nil) throws -> URL {
         let baseDirectory = try destinationDirectory ?? defaultDestinationDirectory()
         let displayName = launcherDisplayName(for: group)
-        return baseDirectory.appendingPathComponent("\(displayName).app", isDirectory: true)
+        let groupID = group.id.uuidString
+        let candidates = [
+            "\(displayName).app",
+            "\(displayName) (\(groupID.prefix(8))).app",
+            "\(displayName) (\(groupID)).app"
+        ].map { baseDirectory.appendingPathComponent($0, isDirectory: true) }
+
+        if let ownedURL = candidates.first(where: {
+            FileManager.default.fileExists(atPath: $0.path) && launcherIsOwned(at: $0, by: group)
+        }) {
+            return ownedURL
+        }
+        if let freeURL = candidates.first(where: { !FileManager.default.fileExists(atPath: $0.path) }) {
+            return freeURL
+        }
+        return candidates[candidates.count - 1]
     }
 
     func deleteLauncher(for group: AppGroup, destinationDirectory: URL? = nil) throws {
         let appURL = try launcherURL(for: group, destinationDirectory: destinationDirectory)
-        guard FileManager.default.fileExists(atPath: appURL.path) else { return }
+        guard
+            FileManager.default.fileExists(atPath: appURL.path),
+            launcherIsOwned(at: appURL, by: group)
+        else { return }
         try FileManager.default.removeItem(at: appURL)
     }
 
@@ -191,6 +209,19 @@ private extension LauncherAppGeneratorService {
 
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: url, options: .atomic)
+    }
+
+    private func launcherIsOwned(at appURL: URL, by group: AppGroup) -> Bool {
+        let infoPlistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        guard
+            let infoData = try? Data(contentsOf: infoPlistURL),
+            let info = try? PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any],
+            let groupID = info["GatherAppsGroupID"] as? String
+        else {
+            return false
+        }
+
+        return groupID.caseInsensitiveCompare(group.id.uuidString) == .orderedSame
     }
 
     private func launcherIsStale(appURL: URL, group: AppGroup) throws -> Bool {
