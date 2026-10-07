@@ -5,6 +5,7 @@ protocol ActivatableApplication {
     var bundleIdentifier: String? { get }
     var localizedName: String? { get }
     var processIdentifier: pid_t { get }
+    var isActive: Bool { get }
 
     func activate(options: NSApplication.ActivationOptions) -> Bool
 }
@@ -104,7 +105,11 @@ struct AppActivationService: AppActivationProviding {
         case .available:
             break
         case .unavailable(let reason):
-            return .helperUnavailable(reason: reason)
+            return fallbackActivation(
+                app,
+                appName: appName,
+                failureResult: .helperUnavailable(reason: reason)
+            )
         }
 
         switch helperClient.raiseWindows(bundleIdentifier: bundleIdentifier) {
@@ -113,17 +118,49 @@ struct AppActivationService: AppActivationProviding {
         case .appNotRunning:
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
         case .accessibilityPermissionMissing:
-            return .accessibilityPermissionMissing(appName: appName)
+            return fallbackActivation(
+                app,
+                appName: appName,
+                failureResult: .accessibilityPermissionMissing(appName: appName)
+            )
         case .noWindowsFound(let helperAppName):
-            return .noWindowsFound(appName: helperAppName)
+            return fallbackActivation(
+                app,
+                appName: appName,
+                failureResult: .noWindowsFound(appName: helperAppName)
+            )
         case .raiseFailed(let helperAppName):
-            return .windowRaiseFailed(appName: helperAppName)
-        case .helperUnavailable:
-            let activated = app.activate(options: [.activateAllWindows])
-            return activated
-                ? .success(appName: appName)
-                : .helperUnavailable(reason: L10n.string("activation.reason.windowHelperFallbackFailed"))
+            return fallbackActivation(
+                app,
+                appName: appName,
+                failureResult: .windowRaiseFailed(appName: helperAppName)
+            )
+        case .helperUnavailable(let reason):
+            return fallbackActivation(
+                app,
+                appName: appName,
+                failureResult: .helperUnavailable(reason: reason)
+            )
         }
+    }
+
+    private func fallbackActivation(
+        _ app: ActivatableApplication,
+        appName: String,
+        failureResult: ActivationResult
+    ) -> ActivationResult {
+        guard app.activate(options: [.activateAllWindows]) else {
+            return failureResult
+        }
+
+        // Activation is asynchronous. Let macOS finish each request before the
+        // group sends the next one, otherwise only the final app may come forward.
+        let deadline = Date().addingTimeInterval(0.5)
+        while !app.isActive, Date() < deadline {
+            RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
+        }
+
+        return .success(appName: appName)
     }
 
     private func activateExecutable(path: String, name: String, identifier: String) -> ActivationResult {

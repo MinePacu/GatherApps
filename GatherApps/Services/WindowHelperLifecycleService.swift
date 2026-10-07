@@ -115,7 +115,7 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
                 return .available
             }
             return replaceRegistration()
-        case .notRegistered:
+        case .notRegistered, .notFound:
             terminateAllHelpers()
             return registerCurrentHelper()
         case .requiresApproval:
@@ -123,9 +123,6 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
             return launchCurrentHelper(
                 fallbackReason: L10n.string("activation.reason.loginItemRequiresApproval")
             )
-        case .notFound:
-            terminateStaleHelpersAndWait()
-            return launchCurrentHelper(fallbackReason: WindowHelperBundleDiagnostics.notFoundReason())
         @unknown default:
             terminateStaleHelpersAndWait()
             return launchCurrentHelper(

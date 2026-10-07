@@ -28,7 +28,7 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(app.activationOptions.isEmpty)
     }
 
-    func testActivationReportsAccessibilityPermissionMissingFromHelper() {
+    func testActivationFallsBackWhenAccessibilityPermissionIsMissing() {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -46,11 +46,56 @@ final class AppActivationTests: XCTestCase {
 
         let result = service.activate(bundleIdentifier: "com.example.App")
 
-        XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
-        XCTAssertTrue(app.activationOptions.isEmpty)
+        XCTAssertEqual(result, .success(appName: "Example"))
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationReportsHelperUnavailableWhenLoginItemNeedsApproval() {
+    func testActivationFallsBackWhenHelperCannotRaiseWindows() {
+        let helperFailures: [WindowHelperActivationResult] = [
+            .noWindowsFound(appName: "Example"),
+            .raiseFailed(appName: "Example")
+        ]
+
+        for helperFailure in helperFailures {
+            let app = StubActivatableApplication(
+                bundleIdentifier: "com.example.App",
+                localizedName: "Example",
+                processIdentifier: 1234,
+                activationResult: true
+            )
+            let service = AppActivationService(
+                applicationProvider: StubApplicationProvider(app: app),
+                helperRegistrationService: StubWindowHelperRegistrationService(result: .available),
+                helperClient: StubWindowHelperClient(result: helperFailure)
+            )
+
+            let result = service.activate(bundleIdentifier: "com.example.App")
+
+            XCTAssertEqual(result, .success(appName: "Example"))
+            XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+        }
+    }
+
+    func testActivationPreservesAccessibilityErrorWhenFallbackActivationFails() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: false
+        )
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(app: app),
+            helperRegistrationService: StubWindowHelperRegistrationService(result: .available),
+            helperClient: StubWindowHelperClient(result: .accessibilityPermissionMissing)
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
+        XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+    }
+
+    func testActivationFallsBackToApplicationActivationWhenRegistrationIsUnavailable() {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -70,9 +115,34 @@ final class AppActivationTests: XCTestCase {
 
         let result = service.activate(bundleIdentifier: "com.example.App")
 
+        XCTAssertEqual(result, .success(appName: "Example"))
+        XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+    }
+
+    func testActivationPreservesRegistrationErrorWhenFallbackActivationFails() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: false
+        )
+        let appProvider = StubApplicationProvider(app: app)
+        let registrationService = StubWindowHelperRegistrationService(
+            result: .unavailable(reason: "Login item requires user approval.")
+        )
+        let helperClient = StubWindowHelperClient(result: .raised(appName: "Example", raisedWindowCount: 1))
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
         XCTAssertEqual(result, .helperUnavailable(reason: "Login item requires user approval."))
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
-        XCTAssertTrue(app.activationOptions.isEmpty)
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
     func testActivationFallsBackToApplicationActivationWhenHelperIsUnavailable() {
@@ -94,6 +164,28 @@ final class AppActivationTests: XCTestCase {
         let result = service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .success(appName: "Example"))
+        XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+    }
+
+    func testActivationPreservesHelperErrorWhenFallbackActivationFails() {
+        let app = StubActivatableApplication(
+            bundleIdentifier: "com.example.App",
+            localizedName: "Example",
+            processIdentifier: 1234,
+            activationResult: false
+        )
+        let appProvider = StubApplicationProvider(app: app)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .helperUnavailable(reason: "missing helper"))
+        let service = AppActivationService(
+            applicationProvider: appProvider,
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let result = service.activate(bundleIdentifier: "com.example.App")
+
+        XCTAssertEqual(result, .helperUnavailable(reason: "missing helper"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
@@ -133,6 +225,7 @@ private final class StubActivatableApplication: ActivatableApplication {
     let bundleIdentifier: String?
     let localizedName: String?
     let processIdentifier: pid_t
+    private(set) var isActive = false
     private let activationResult: Bool
     private(set) var activationOptions: [NSApplication.ActivationOptions] = []
 
@@ -150,6 +243,7 @@ private final class StubActivatableApplication: ActivatableApplication {
 
     func activate(options: NSApplication.ActivationOptions) -> Bool {
         activationOptions.append(options)
+        isActive = activationResult
         return activationResult
     }
 }
