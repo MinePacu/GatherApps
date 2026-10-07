@@ -10,14 +10,17 @@ final class StatusBarWindowHelperTests: XCTestCase {
             fileURLWithPath: "/Applications/GatherApps.app/Contents/Library/LoginItems/Helper.app"
         )
 
-        XCTAssertEqual(StatusBarAccessibilityStatus.title(runtimeInfo: nil), "Unavailable")
+        XCTAssertEqual(
+            StatusBarAccessibilityStatus.title(runtimeInfo: nil),
+            L10n.string("statusBar.accessibility.unavailable")
+        )
         XCTAssertEqual(
             StatusBarAccessibilityStatus.title(runtimeInfo: WindowHelperRuntimeInfo(
                 bundleURL: helperURL,
                 protocolVersion: WindowHelperConfiguration.protocolVersion,
                 accessibilityTrusted: false
             )),
-            "Needs Permission"
+            L10n.string("statusBar.accessibility.needsPermission")
         )
         XCTAssertEqual(
             StatusBarAccessibilityStatus.title(runtimeInfo: WindowHelperRuntimeInfo(
@@ -25,7 +28,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
                 protocolVersion: WindowHelperConfiguration.protocolVersion,
                 accessibilityTrusted: true
             )),
-            "Granted"
+            L10n.string("statusBar.accessibility.granted")
         )
     }
 
@@ -42,8 +45,11 @@ final class StatusBarWindowHelperTests: XCTestCase {
 
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
         XCTAssertEqual(client.probeCallCount, 0)
-        XCTAssertEqual(submenu?.items.first?.title, "Helper: Checking...")
-        XCTAssertEqual(submenu?.items.dropFirst().first?.title, "Accessibility: Checking...")
+        XCTAssertEqual(submenu?.items.first?.title, L10n.string("statusBar.helper.checking"))
+        XCTAssertEqual(
+            submenu?.items.dropFirst().first?.title,
+            L10n.string("statusBar.accessibility.checking")
+        )
     }
 
     @MainActor
@@ -62,8 +68,14 @@ final class StatusBarWindowHelperTests: XCTestCase {
 
         XCTAssertEqual(client.probeCallCount, 1)
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
-        XCTAssertEqual(submenu.items[0].title, "Helper: Running")
-        XCTAssertEqual(submenu.items[1].title, "Accessibility: Granted")
+        XCTAssertEqual(
+            submenu.items[0].title,
+            L10n.format("statusBar.helper.format", L10n.string("statusBar.helper.running"))
+        )
+        XCTAssertEqual(
+            submenu.items[1].title,
+            L10n.format("statusBar.accessibility.format", L10n.string("statusBar.accessibility.granted"))
+        )
     }
 
     @MainActor
@@ -78,14 +90,71 @@ final class StatusBarWindowHelperTests: XCTestCase {
 
         XCTAssertEqual(client.probeCallCount, 1)
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
-        XCTAssertEqual(submenu.items[0].title, "Helper: Not Running")
-        XCTAssertEqual(submenu.items[1].title, "Accessibility: Unavailable")
+        XCTAssertEqual(
+            submenu.items[0].title,
+            L10n.format("statusBar.helper.format", L10n.string("statusBar.helper.notRunning"))
+        )
+        XCTAssertEqual(
+            submenu.items[1].title,
+            L10n.format("statusBar.accessibility.format", L10n.string("statusBar.accessibility.unavailable"))
+        )
+    }
+
+    @MainActor
+    func testHidingStatusItemWhileDockIconHiddenRestoresDockIcon() throws {
+        var recordedPolicies: [NSApplication.ActivationPolicy] = []
+        let settings = try makeSettings(showsStatusBarItem: true, showsDockIcon: false)
+        let controller = try makeController(
+            registrationService: StubStatusBarRegistrationService(),
+            client: StubStatusBarWindowHelperClient(runtimeInfo: nil),
+            settings: settings,
+            setActivationPolicy: { recordedPolicies.append($0) }
+        )
+
+        controller.toggleStatusBarItem()
+
+        XCTAssertFalse(settings.showsStatusBarItem)
+        XCTAssertTrue(settings.showsDockIcon)
+        XCTAssertEqual(recordedPolicies, [.regular])
+    }
+
+    @MainActor
+    func testHidingDockIconWhileStatusItemHiddenIsIgnored() throws {
+        var recordedPolicies: [NSApplication.ActivationPolicy] = []
+        let settings = try makeSettings(showsStatusBarItem: false, showsDockIcon: true)
+        let controller = try makeController(
+            registrationService: StubStatusBarRegistrationService(),
+            client: StubStatusBarWindowHelperClient(runtimeInfo: nil),
+            settings: settings,
+            setActivationPolicy: { recordedPolicies.append($0) }
+        )
+
+        controller.toggleDockIcon()
+
+        XCTAssertTrue(settings.showsDockIcon)
+        XCTAssertFalse(settings.showsStatusBarItem)
+        XCTAssertTrue(recordedPolicies.isEmpty)
+    }
+
+    @MainActor
+    private func makeSettings(showsStatusBarItem: Bool = true, showsDockIcon: Bool = true) throws -> MenuBarSettings {
+        let defaultsSuiteName = "GatherAppsStatusBarTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        addTeardownBlock {
+            UserDefaults().removePersistentDomain(forName: defaultsSuiteName)
+        }
+        let settings = MenuBarSettings(defaults: defaults)
+        settings.showsStatusBarItem = showsStatusBarItem
+        settings.showsDockIcon = showsDockIcon
+        return settings
     }
 
     @MainActor
     private func makeController(
         registrationService: StubStatusBarRegistrationService,
-        client: StubStatusBarWindowHelperClient
+        client: StubStatusBarWindowHelperClient,
+        settings: MenuBarSettings? = nil,
+        setActivationPolicy: @escaping (NSApplication.ActivationPolicy) -> Void = { _ in }
     ) throws -> StatusBarController {
         let testDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GatherAppsStatusBarTests-\(UUID().uuidString)", isDirectory: true)
@@ -95,12 +164,6 @@ final class StatusBarWindowHelperTests: XCTestCase {
             try? FileManager.default.removeItem(at: testDirectory)
         }
 
-        let defaultsSuiteName = "GatherAppsStatusBarTests-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
-        addTeardownBlock {
-            UserDefaults().removePersistentDomain(forName: defaultsSuiteName)
-        }
-
         let store = AppGroupStore(
             groupsFileURL: testDirectory.appendingPathComponent("groups.json"),
             iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
@@ -108,7 +171,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
         )
         return StatusBarController(
             store: store,
-            settings: MenuBarSettings(defaults: defaults),
+            settings: try settings ?? makeSettings(),
             actions: StatusBarActions(
                 activateGroup: { _ in },
                 showSwitcher: {},
@@ -117,13 +180,14 @@ final class StatusBarWindowHelperTests: XCTestCase {
             runningAppProvider: { [] },
             windowHelperRegistrationService: registrationService,
             windowHelperClient: client,
-            windowHelperServiceStatusProvider: { .enabled }
+            windowHelperServiceStatusProvider: { .enabled },
+            setActivationPolicy: setActivationPolicy
         )
     }
 
     @MainActor
     private func windowRaisingSubmenu(in menu: NSMenu) -> NSMenu? {
-        menu.items.first { $0.title == "Window Raising" }?.submenu
+        menu.items.first { $0.title == L10n.string("statusBar.windowRaising") }?.submenu
     }
 }
 
