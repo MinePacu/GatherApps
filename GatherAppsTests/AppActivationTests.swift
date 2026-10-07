@@ -46,7 +46,7 @@ final class AppActivationTests: XCTestCase {
 
         let result = service.activate(bundleIdentifier: "com.example.App")
 
-        XCTAssertEqual(result, .success(appName: "Example"))
+        XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
@@ -270,6 +270,29 @@ final class AppActivationTests: XCTestCase {
         ])
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
         XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App0"])
+        for app in apps {
+            XCTAssertEqual(app.activationOptions, [.activateAllWindows])
+        }
+    }
+
+    func testGroupActivationReportsMissingAccessibilityForEachAppAfterFallback() {
+        let apps = makeRunningApps(count: 2, activationResult: true)
+        let registrationService = StubWindowHelperRegistrationService(result: .available)
+        let helperClient = StubWindowHelperClient(result: .accessibilityPermissionMissing)
+        let service = AppActivationService(
+            applicationProvider: StubApplicationProvider(apps: apps),
+            helperRegistrationService: registrationService,
+            helperClient: helperClient
+        )
+
+        let results = service.activateGroup(makeGroupedApps(count: 2))
+
+        XCTAssertEqual(results, [
+            .accessibilityPermissionMissing(appName: "Example 0"),
+            .accessibilityPermissionMissing(appName: "Example 1")
+        ])
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
+        XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App0", "com.example.App1"])
         for app in apps {
             XCTAssertEqual(app.activationOptions, [.activateAllWindows])
         }

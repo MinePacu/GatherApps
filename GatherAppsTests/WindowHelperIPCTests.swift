@@ -88,6 +88,24 @@ final class WindowHelperIPCTests: XCTestCase {
         XCTAssertEqual(result.runtimeInfo?.accessibilityTrusted, true)
     }
 
+    func testProcessResultTreatsUntrustedRaisedResponseAsMissingAccessibility() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: false))
+
+        XCTAssertEqual(result.activationResult, .accessibilityPermissionMissing)
+    }
+
+    func testProcessResultKeepsTrustedRaisedResponseAsRaised() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: true))
+
+        XCTAssertEqual(result.activationResult, .raised(appName: "Example", raisedWindowCount: 0))
+    }
+
+    func testProcessResultKeepsRaisedResponseWithoutTrustFlagAsRaised() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: nil))
+
+        XCTAssertEqual(result.activationResult, .raised(appName: "Example", raisedWindowCount: 0))
+    }
+
     func testHelperPromptsOnlyForDedicatedPermissionRequest() throws {
         let projectRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -119,6 +137,21 @@ final class WindowHelperIPCTests: XCTestCase {
                 deliverImmediately: true
             )
         }
+    }
+
+    private func raisedUserInfo(accessibilityTrusted: Bool?) -> [AnyHashable: Any] {
+        var userInfo: [AnyHashable: Any] = [
+            WindowHelperNotification.bundleIdentifierKey: "com.example.App",
+            WindowHelperNotification.appNameKey: "Example",
+            WindowHelperNotification.statusKey: "raised",
+            WindowHelperNotification.raisedWindowCountKey: 0,
+            WindowHelperNotification.helperBundlePathKey: Bundle.main.bundleURL.path,
+            WindowHelperNotification.protocolVersionKey: WindowHelperConfiguration.protocolVersion
+        ]
+        if let accessibilityTrusted {
+            userInfo[WindowHelperNotification.accessibilityTrustedKey] = accessibilityTrusted
+        }
+        return userInfo
     }
 
     private func response(

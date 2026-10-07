@@ -152,11 +152,11 @@ struct AppActivationService: AppActivationProviding {
         case .appNotRunning:
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
         case .accessibilityPermissionMissing:
-            return fallbackActivation(
-                app,
-                appName: appName,
-                failureResult: .accessibilityPermissionMissing(appName: appName)
-            )
+            // Still bring the app forward, but report the missing permission
+            // even when the fallback succeeds so the user is told how to fix it.
+            let failureResult = ActivationResult.accessibilityPermissionMissing(appName: appName)
+            _ = fallbackActivation(app, appName: appName, failureResult: failureResult)
+            return failureResult
         case .noWindowsFound(let helperAppName):
             return fallbackActivation(
                 app,
@@ -451,6 +451,11 @@ struct WindowHelperProcessResult {
     var activationResult: WindowHelperActivationResult {
         switch status {
         case "raised":
+            // Helpers without Accessibility only activate the app and still
+            // answer "raised"; surface that as missing permission instead.
+            if accessibilityTrusted == false {
+                return .accessibilityPermissionMissing
+            }
             return .raised(appName: appName ?? bundleIdentifier, raisedWindowCount: raisedWindowCount ?? 0)
         case "appNotRunning":
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
