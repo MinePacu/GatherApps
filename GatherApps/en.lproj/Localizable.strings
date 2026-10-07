@@ -29,6 +29,8 @@
 "errors.groupIconCreationFailed" = "Could not create the group icon: %@";
 "errors.groupIconRefreshFailed" = "Could not refresh the group icon: %@";
 "errors.groupLoadFailed" = "Could not load the group list: %@";
+"errors.groupLoadFailedBackedUp" = "Could not load the group list: %1$@. The unreadable file was kept as %2$@ in the GatherApps data folder.";
+"errors.groupSaveBlockedByUnreadableFile" = "Changes were not saved because the existing group list could not be read or backed up.";
 "errors.groupSaveFailed" = "Could not save the group list: %@";
 "errors.launcherGenerationFailed" = "Could not generate the launcher app: %@";
 "groupDetail.activateGroup" = "Activate Group";

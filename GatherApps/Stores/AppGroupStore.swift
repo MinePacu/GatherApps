@@ -19,6 +19,7 @@ final class AppGroupStore: ObservableObject {
     private let iconCleanupService: GroupIconCleanupService
     private let activationService: AppActivationProviding
     private let launcherGeneratorService: LauncherAppGeneratorService
+    private var isSavingBlockedByUnreadableGroupsFile = false
 
     init(
         groupsFileURL: URL? = nil,
@@ -162,24 +163,61 @@ final class AppGroupStore: ObservableObject {
     }
 
     private func load() -> LoadResult {
+        let fileURL: URL
         do {
-            let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                groups = []
-                return .notFound
-            }
-
-            let data = try Data(contentsOf: fileURL)
-            groups = try JSONDecoder().decode([AppGroup].self, from: data)
-            return .loaded
+            fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
         } catch {
             groups = []
             lastErrorMessage = L10n.format("errors.groupLoadFailed", error.localizedDescription)
             return .failed
         }
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            groups = []
+            return .notFound
+        }
+
+        do {
+            let data = try Data(contentsOf: fileURL)
+            groups = try JSONDecoder().decode([AppGroup].self, from: data)
+            return .loaded
+        } catch let loadError {
+            groups = []
+            do {
+                let backupURL = try backUpUnreadableGroupsFile(at: fileURL)
+                lastErrorMessage = L10n.format(
+                    "errors.groupLoadFailedBackedUp",
+                    loadError.localizedDescription,
+                    backupURL.lastPathComponent
+                )
+            } catch {
+                isSavingBlockedByUnreadableGroupsFile = true
+                lastErrorMessage = L10n.format("errors.groupLoadFailed", loadError.localizedDescription)
+            }
+            return .failed
+        }
+    }
+
+    private func backUpUnreadableGroupsFile(at fileURL: URL) throws -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let directoryURL = fileURL.deletingLastPathComponent()
+        let baseName = "\(fileURL.lastPathComponent).corrupt-\(formatter.string(from: Date()))"
+        var backupURL = directoryURL.appendingPathComponent(baseName)
+        if FileManager.default.fileExists(atPath: backupURL.path) {
+            backupURL = directoryURL.appendingPathComponent("\(baseName)-\(UUID().uuidString)")
+        }
+        try FileManager.default.moveItem(at: fileURL, to: backupURL)
+        return backupURL
     }
 
     private func save() {
+        guard !isSavingBlockedByUnreadableGroupsFile else {
+            lastErrorMessage = L10n.string("errors.groupSaveBlockedByUnreadableFile")
+            return
+        }
+
         do {
             let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
             try FileManager.default.createDirectory(
