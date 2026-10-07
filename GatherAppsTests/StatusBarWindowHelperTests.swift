@@ -101,6 +101,55 @@ final class StatusBarWindowHelperTests: XCTestCase {
     }
 
     @MainActor
+    func testStatusMenuReflectsGroupCreatedAfterLastRefresh() throws {
+        let store = try makeStore()
+        let controller = try makeController(
+            registrationService: StubStatusBarRegistrationService(),
+            client: StubStatusBarWindowHelperClient(runtimeInfo: nil),
+            store: store
+        )
+
+        controller.menuNeedsUpdate(controller.statusMenu)
+        XCTAssertFalse(menuContainsTitle("New Group", in: controller.statusMenu))
+
+        store.createGroup(named: "New Group")
+        controller.menuNeedsUpdate(controller.statusMenu)
+
+        XCTAssertTrue(menuContainsTitle("New Group", in: controller.statusMenu))
+    }
+
+    @MainActor
+    func testStatusMenuRereadsRunningAppsWhenOpened() throws {
+        var providerCallCount = 0
+        let controller = try makeController(
+            registrationService: StubStatusBarRegistrationService(),
+            client: StubStatusBarWindowHelperClient(runtimeInfo: nil),
+            runningAppProvider: {
+                providerCallCount += 1
+                return []
+            }
+        )
+        providerCallCount = 0
+
+        controller.menuNeedsUpdate(controller.statusMenu)
+        XCTAssertEqual(providerCallCount, 1)
+        controller.menuNeedsUpdate(controller.statusMenu)
+        XCTAssertEqual(providerCallCount, 2)
+    }
+
+    @MainActor
+    func testOpeningStatusMenuDoesNotProbeHelper() throws {
+        let registrationService = StubStatusBarRegistrationService()
+        let client = StubStatusBarWindowHelperClient(runtimeInfo: nil)
+        let controller = try makeController(registrationService: registrationService, client: client)
+
+        controller.menuNeedsUpdate(controller.statusMenu)
+
+        XCTAssertEqual(client.probeCallCount, 0)
+        XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
+    }
+
+    @MainActor
     func testHidingStatusItemWhileDockIconHiddenRestoresDockIcon() throws {
         var recordedPolicies: [NSApplication.ActivationPolicy] = []
         let settings = try makeSettings(showsStatusBarItem: true, showsDockIcon: false)
@@ -150,12 +199,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
     }
 
     @MainActor
-    private func makeController(
-        registrationService: StubStatusBarRegistrationService,
-        client: StubStatusBarWindowHelperClient,
-        settings: MenuBarSettings? = nil,
-        setActivationPolicy: @escaping (NSApplication.ActivationPolicy) -> Void = { _ in }
-    ) throws -> StatusBarController {
+    private func makeStore() throws -> AppGroupStore {
         let testDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GatherAppsStatusBarTests-\(UUID().uuidString)", isDirectory: true)
         let iconsDirectory = testDirectory.appendingPathComponent("Icons", isDirectory: true)
@@ -164,11 +208,28 @@ final class StatusBarWindowHelperTests: XCTestCase {
             try? FileManager.default.removeItem(at: testDirectory)
         }
 
-        let store = AppGroupStore(
+        return AppGroupStore(
             groupsFileURL: testDirectory.appendingPathComponent("groups.json"),
             iconService: GroupIconService(iconsDirectoryURL: iconsDirectory),
             iconCleanupService: GroupIconCleanupService(iconsDirectoryURL: iconsDirectory)
         )
+    }
+
+    @MainActor
+    private func menuContainsTitle(_ text: String, in menu: NSMenu) -> Bool {
+        menu.items.contains { $0.title.contains(text) || ($0.attributedTitle?.string.contains(text) ?? false) }
+    }
+
+    @MainActor
+    private func makeController(
+        registrationService: StubStatusBarRegistrationService,
+        client: StubStatusBarWindowHelperClient,
+        settings: MenuBarSettings? = nil,
+        store: AppGroupStore? = nil,
+        runningAppProvider: @escaping () -> [RunningAppInfo] = { [] },
+        setActivationPolicy: @escaping (NSApplication.ActivationPolicy) -> Void = { _ in }
+    ) throws -> StatusBarController {
+        let store = try store ?? makeStore()
         return StatusBarController(
             store: store,
             settings: try settings ?? makeSettings(),
@@ -177,7 +238,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
                 showSwitcher: {},
                 showMainWindow: {}
             ),
-            runningAppProvider: { [] },
+            runningAppProvider: runningAppProvider,
             windowHelperRegistrationService: registrationService,
             windowHelperClient: client,
             windowHelperServiceStatusProvider: { .enabled },

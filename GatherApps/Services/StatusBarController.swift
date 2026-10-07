@@ -45,6 +45,9 @@ final class StatusBarController: NSObject {
     private let windowHelperClient: WindowHelperClient
     private let windowHelperServiceStatusProvider: () -> SMAppService.Status
     private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
+    /// Persistent menu attached to the status item. Its contents are rebuilt every time it is about to open
+    /// (`menuNeedsUpdate`) because `@Published` sinks fire in `willSet`, before the stores hold the new values.
+    let statusMenu = NSMenu(title: "GatherApps")
     private var statusItem: NSStatusItem?
     private weak var windowRaisingMenu: NSMenu?
     private weak var windowHelperStatusItem: NSMenuItem?
@@ -75,6 +78,7 @@ final class StatusBarController: NSObject {
         }
         self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
         super.init()
+        statusMenu.delegate = self
     }
 
     func setVisible(_ isVisible: Bool) {
@@ -90,12 +94,14 @@ final class StatusBarController: NSObject {
     func refresh() {
         guard let statusItem else { return }
         configureButton(statusItem.button)
-        statusItem.menu = makeMenu()
+        populateMenu(statusMenu)
     }
 
     private func installStatusItemIfNeeded() {
         guard statusItem == nil else { return }
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.menu = statusMenu
+        statusItem = item
     }
 
     private func configureButton(_ button: NSStatusBarButton?) {
@@ -106,6 +112,12 @@ final class StatusBarController: NSObject {
 
     func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "GatherApps")
+        populateMenu(menu)
+        return menu
+    }
+
+    private func populateMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
         menu.addItem(headerItem(title: "GatherApps"))
         menu.addItem(.separator())
 
@@ -149,8 +161,6 @@ final class StatusBarController: NSObject {
         menu.addItem(.separator())
         menu.addItem(actionItem(title: L10n.string("statusBar.settings"), action: #selector(openGatherAppsWindow)))
         menu.addItem(actionItem(title: L10n.string("statusBar.quit"), action: #selector(quitGatherApps)))
-
-        return menu
     }
 
     private func headerItem(title: String) -> NSMenuItem {
@@ -305,6 +315,10 @@ final class StatusBarController: NSObject {
 
 extension StatusBarController: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === statusMenu {
+            populateMenu(menu)
+            return
+        }
         guard menu === windowRaisingMenu else { return }
 
         let runtimeInfo = windowHelperClient.probe()
