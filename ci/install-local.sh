@@ -145,9 +145,14 @@ stop_process() {
   exit 1
 }
 
+# Processes started by launchd (e.g. the login-item helper) run with their bundle ID
+# as argv[0] instead of the executable path, so match either form.
+MAIN_PROCESS_PATTERN='/GatherApps\.app/Contents/MacOS/GatherApps( |$)|^com\.minepacu\.GatherApps( |$)'
+HELPER_PROCESS_PATTERN='GatherAppsWindowHelper\.app/Contents/MacOS/GatherAppsWindowHelper( |$)|^com\.minepacu\.GatherApps\.WindowHelper( |$)'
+
 echo "Quitting running instances..."
-stop_process "/GatherApps.app/Contents/MacOS/GatherApps" "$MAIN_BUNDLE_ID"
-stop_process "GatherAppsWindowHelper.app/Contents/MacOS/GatherAppsWindowHelper" "$HELPER_BUNDLE_ID"
+stop_process "$MAIN_PROCESS_PATTERN" "$MAIN_BUNDLE_ID"
+stop_process "$HELPER_PROCESS_PATTERN" "$HELPER_BUNDLE_ID"
 
 # Install atomically
 echo "Installing to $INSTALL_PATH..."
