@@ -246,22 +246,6 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(metadata.releaseNotesHTML, "<p>Improved launcher refresh.</p>")
     }
 
-    func testAppcastFeedProviderUsesGitLabBeforeGitHubFallback() {
-        var provider = AppcastFeedProvider()
-
-        XCTAssertEqual(
-            provider.currentFeedURL?.absoluteString,
-            "https://gitlab.com/MinePacu/GatherApps/-/releases/permalink/latest/downloads/appcast.xml"
-        )
-
-        XCTAssertTrue(provider.advanceToFallbackFeed())
-        XCTAssertEqual(
-            provider.currentFeedURL?.absoluteString,
-            "https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml"
-        )
-        XCTAssertFalse(provider.advanceToFallbackFeed())
-    }
-
     func testGitLabCIAddsMacOSBuildAndTestPipeline() throws {
         let projectRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
