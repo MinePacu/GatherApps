@@ -32,6 +32,7 @@
 "errors.groupLoadFailedBackedUp" = "グループリストを読み込めませんでした: %1$@。読み込めないファイルは GatherApps のデータフォルダに %2$@ として保存しました。";
 "errors.groupSaveBlockedByUnreadableFile" = "既存のグループリストを読み込むこともバックアップすることもできなかったため、変更は保存されませんでした。";
 "errors.groupSaveFailed" = "グループリストを保存できませんでした: %@";
+"errors.launcherDeletionFailed" = "ランチャーアプリを削除できませんでした: %@";
 "errors.launcherGenerationFailed" = "ランチャーアプリを生成できませんでした: %@";
 "groupDetail.activateGroup" = "グループをアクティブ化";
 "groupDetail.addToGroup" = "グループに追加";

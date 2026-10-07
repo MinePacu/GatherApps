@@ -74,8 +74,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isShowingCreateGroup) {
             CreateGroupSheet { name in
-                store.createGroup(named: name)
-                selectedGroupID = store.groups.last?.id
+                if let id = store.createGroup(named: name) {
+                    selectedGroupID = id
+                }
             }
         }
         .alert(

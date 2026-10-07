@@ -307,5 +307,4 @@ final class AppGroupStoreTests: XCTestCase {
         }
         return URL(fileURLWithPath: path)
     }
-
 }

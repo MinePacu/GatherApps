@@ -32,6 +32,7 @@
 "errors.groupLoadFailedBackedUp" = "Could not load the group list: %1$@. The unreadable file was kept as %2$@ in the GatherApps data folder.";
 "errors.groupSaveBlockedByUnreadableFile" = "Changes were not saved because the existing group list could not be read or backed up.";
 "errors.groupSaveFailed" = "Could not save the group list: %@";
+"errors.launcherDeletionFailed" = "Could not delete the launcher app: %@";
 "errors.launcherGenerationFailed" = "Could not generate the launcher app: %@";
 "groupDetail.activateGroup" = "Activate Group";
 "groupDetail.addToGroup" = "Add to group";

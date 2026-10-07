@@ -11,7 +11,9 @@ final class AppGroupStore: ObservableObject {
 
     @Published private(set) var groups: [AppGroup] = []
     @Published var lastActivationResults: [ActivationResult] = []
+    @Published private(set) var lastActivationGroupID: AppGroup.ID?
     @Published var lastLauncherGenerationResult: LauncherGenerationResult?
+    @Published private(set) var lastLauncherGenerationGroupID: AppGroup.ID?
     @Published var lastErrorMessage: String?
 
     private let groupsFileURL: URL?
@@ -43,17 +45,20 @@ final class AppGroupStore: ObservableObject {
         }
     }
 
-    func createGroup(named name: String) {
+    @discardableResult
+    func createGroup(named name: String) -> AppGroup.ID? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return nil }
 
         var group = AppGroup(name: trimmedName)
         do {
             group.iconFileName = try iconService.generateIcon(for: group)
             groups.append(group)
             save()
+            return group.id
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconCreationFailed", error.localizedDescription)
+            return nil
         }
     }
 
@@ -125,6 +130,7 @@ final class AppGroupStore: ObservableObject {
         lastActivationResults = group.apps.compactMap {
             resultsByIdentifier[$0.id]
         }
+        lastActivationGroupID = groupID
     }
 
     func handleActivationURL(_ url: URL) -> AppGroup.ID? {
@@ -141,6 +147,10 @@ final class AppGroupStore: ObservableObject {
 
         groups[index].launcherShowsGatherAppsWindow = showsGatherAppsWindow
         save()
+
+        // Clear any previous result so a failed generation never shows an older success.
+        lastLauncherGenerationResult = nil
+        lastLauncherGenerationGroupID = groupID
 
         do {
             lastLauncherGenerationResult = try launcherGeneratorService.generateLauncher(
@@ -267,6 +277,8 @@ final class AppGroupStore: ObservableObject {
             cleanupOrphanedIcons()
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconRefreshFailed", error.localizedDescription)
+            // The app-list change must still be persisted; a save failure message overrides the icon one.
+            save()
         }
     }
 
@@ -285,7 +297,7 @@ final class AppGroupStore: ObservableObject {
         do {
             try launcherGeneratorService.deleteLauncher(for: group)
         } catch {
-            lastErrorMessage = "런처 앱을 삭제하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.launcherDeletionFailed", error.localizedDescription)
         }
     }
 
