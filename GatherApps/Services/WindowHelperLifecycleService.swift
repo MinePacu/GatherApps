@@ -115,8 +115,14 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
                 return .available
             }
             return replaceRegistration()
-        case .notRegistered, .notFound:
+        case .notRegistered:
             terminateAllHelpers()
+            return registerCurrentHelper()
+        case .notFound:
+            terminateStaleHelpersAndWait()
+            if isCurrentHelperRunning {
+                return .available
+            }
             return registerCurrentHelper()
         case .requiresApproval:
             terminateStaleHelpersAndWait()
