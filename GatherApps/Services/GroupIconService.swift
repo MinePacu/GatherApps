@@ -12,7 +12,7 @@ struct GroupIconService {
     }
 
     func iconURL(for fileName: String) -> URL? {
-        try? iconsDirectory().appendingPathComponent(fileName)
+        (iconsDirectoryURL ?? AppSupportPaths.iconsDirectoryLocation)?.appendingPathComponent(fileName)
     }
 
     func generateIcon(for group: AppGroup) throws -> String {
