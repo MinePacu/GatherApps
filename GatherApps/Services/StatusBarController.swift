@@ -39,7 +39,11 @@ final class StatusBarController: NSObject {
     private let runningAppProvider: () -> [RunningAppInfo]
     private let windowHelperRegistrationService: WindowHelperRegistrationProviding
     private let windowHelperClient: WindowHelperClient
+    private let windowHelperServiceStatusProvider: () -> SMAppService.Status
     private var statusItem: NSStatusItem?
+    private weak var windowRaisingMenu: NSMenu?
+    private weak var windowHelperStatusItem: NSMenuItem?
+    private weak var accessibilityStatusItem: NSMenuItem?
 
     init(
         store: AppGroupStore,
@@ -47,7 +51,8 @@ final class StatusBarController: NSObject {
         actions: StatusBarActions,
         runningAppProvider: (() -> [RunningAppInfo])? = nil,
         windowHelperRegistrationService: WindowHelperRegistrationProviding? = nil,
-        windowHelperClient: WindowHelperClient? = nil
+        windowHelperClient: WindowHelperClient? = nil,
+        windowHelperServiceStatusProvider: (() -> SMAppService.Status)? = nil
     ) {
         self.store = store
         self.settings = settings
@@ -59,6 +64,9 @@ final class StatusBarController: NSObject {
             ?? LoginItemWindowHelperRegistrationService()
         self.windowHelperClient = windowHelperClient
             ?? NotificationWindowHelperClient(timeout: 0.25)
+        self.windowHelperServiceStatusProvider = windowHelperServiceStatusProvider ?? {
+            SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status
+        }
         super.init()
     }
 
@@ -89,7 +97,7 @@ final class StatusBarController: NSObject {
         button?.setAccessibilityLabel("GatherApps")
     }
 
-    private func makeMenu() -> NSMenu {
+    func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "GatherApps")
         menu.addItem(headerItem(title: "GatherApps"))
         menu.addItem(.separator())
@@ -166,20 +174,15 @@ final class StatusBarController: NSObject {
     }
 
     private func windowRaisingMenuItem() -> NSMenuItem {
-        let runtimeInfo: WindowHelperRuntimeInfo?
-        switch windowHelperRegistrationService.ensureRegistered() {
-        case .available:
-            runtimeInfo = windowHelperClient.probe()
-        case .unavailable:
-            runtimeInfo = nil
-        }
-
         let submenu = NSMenu(title: "Window Raising")
-        submenu.addItem(headerItem(
-            title: "Helper: \(windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil))"
-        ))
-        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
-        submenu.addItem(headerItem(title: "Accessibility: \(accessibilityTitle)"))
+        submenu.delegate = self
+        let helperItem = headerItem(title: "Helper: Checking...")
+        let accessibilityItem = headerItem(title: "Accessibility: Checking...")
+        submenu.addItem(helperItem)
+        submenu.addItem(accessibilityItem)
+        windowRaisingMenu = submenu
+        windowHelperStatusItem = helperItem
+        accessibilityStatusItem = accessibilityItem
         submenu.addItem(actionItem(
             title: "Request Accessibility Permission",
             action: #selector(requestAccessibilityPermission)
@@ -194,7 +197,7 @@ final class StatusBarController: NSObject {
 
     private func windowHelperStatusTitle(isHelperRunning: Bool) -> String {
         StatusBarWindowHelperStatus.title(
-            serviceStatus: SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status,
+            serviceStatus: windowHelperServiceStatusProvider(),
             isHelperRunning: isHelperRunning
         )
     }
@@ -275,5 +278,16 @@ final class StatusBarController: NSObject {
 
     @objc private func quitGatherApps() {
         NSApp.terminate(nil)
+    }
+}
+
+extension StatusBarController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === windowRaisingMenu else { return }
+
+        let runtimeInfo = windowHelperClient.probe()
+        windowHelperStatusItem?.title = "Helper: \(windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil))"
+        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
+        accessibilityStatusItem?.title = "Accessibility: \(accessibilityTitle)"
     }
 }
