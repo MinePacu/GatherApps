@@ -57,6 +57,8 @@
 "statusBar.accessibility.granted" = "許可済み";
 "statusBar.accessibility.needsPermission" = "許可が必要";
 "statusBar.accessibility.unavailable" = "利用不可";
+"statusBar.accessibilityWarning.accessibilityLabel" = "GatherApps – アクセシビリティ権限が必要です";
+"statusBar.accessibilityWarning.menuItem" = "アクセシビリティ権限が必要です – 権限をリクエスト…";
 "statusBar.activateGroup" = "%@を有効化";
 "statusBar.helper.checking" = "ヘルパー: 確認中...";
 "statusBar.helper.format" = "ヘルパー: %@";

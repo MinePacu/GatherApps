@@ -15,6 +15,7 @@ final class AppGroupStore: ObservableObject {
     @Published var lastLauncherGenerationResult: LauncherGenerationResult?
     @Published private(set) var lastLauncherGenerationGroupID: AppGroup.ID?
     @Published var lastErrorMessage: String?
+    @Published private(set) var needsAccessibilityPermission = false
 
     private let groupsFileURL: URL?
     private let iconService: GroupIconService
@@ -131,6 +132,11 @@ final class AppGroupStore: ObservableObject {
             resultsByIdentifier[$0.id]
         }
         lastActivationGroupID = groupID
+        updateAccessibilityPermissionWarning(for: results)
+    }
+
+    func clearAccessibilityPermissionWarning() {
+        needsAccessibilityPermission = false
     }
 
     func handleActivationURL(_ url: URL) -> AppGroup.ID? {
@@ -324,6 +330,17 @@ final class AppGroupStore: ObservableObject {
             try iconCleanupService.cleanup(referencedFileNames: referencedFileNames)
         } catch {
             // Cleanup should not block the main group management flows.
+        }
+    }
+
+    private func updateAccessibilityPermissionWarning(for results: [ActivationResult]) {
+        let isPermissionMissing = results.contains { result in
+            if case .accessibilityPermissionMissing = result { true } else { false }
+        }
+        if isPermissionMissing {
+            needsAccessibilityPermission = true
+        } else if results.contains(where: \.isSuccess) {
+            needsAccessibilityPermission = false
         }
     }
 

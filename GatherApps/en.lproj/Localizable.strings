@@ -57,6 +57,8 @@
 "statusBar.accessibility.granted" = "Granted";
 "statusBar.accessibility.needsPermission" = "Needs Permission";
 "statusBar.accessibility.unavailable" = "Unavailable";
+"statusBar.accessibilityWarning.accessibilityLabel" = "GatherApps – Accessibility permission needed";
+"statusBar.accessibilityWarning.menuItem" = "Accessibility Permission Needed – Request Permission…";
 "statusBar.activateGroup" = "Activate %@";
 "statusBar.helper.checking" = "Helper: Checking...";
 "statusBar.helper.format" = "Helper: %@";

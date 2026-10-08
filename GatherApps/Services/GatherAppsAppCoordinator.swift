@@ -41,6 +41,13 @@ final class GatherAppsAppCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
+        store.$needsAccessibilityPermission
+            .removeDuplicates()
+            .sink { [weak self] isShowing in
+                self?.statusBarController?.updateAccessibilityWarning(isShowing)
+            }
+            .store(in: &cancellables)
+
         settings.$showsStatusBarItem
             .sink { [weak self] isVisible in
                 self?.statusBarController?.setVisible(isVisible)

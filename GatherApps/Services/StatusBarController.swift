@@ -45,6 +45,7 @@ final class StatusBarController: NSObject {
     private let windowHelperClient: WindowHelperClient
     private let windowHelperServiceStatusProvider: () -> SMAppService.Status
     private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
+    private let openURL: (URL) -> Void
     /// Persistent menu attached to the status item. Its contents are rebuilt every time it is about to open
     /// (`menuNeedsUpdate`) because `@Published` sinks fire in `willSet`, before the stores hold the new values.
     let statusMenu = NSMenu(title: "GatherApps")
@@ -61,7 +62,8 @@ final class StatusBarController: NSObject {
         windowHelperRegistrationService: WindowHelperRegistrationProviding? = nil,
         windowHelperClient: WindowHelperClient? = nil,
         windowHelperServiceStatusProvider: (() -> SMAppService.Status)? = nil,
-        setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil
+        setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil,
+        openURL: ((URL) -> Void)? = nil
     ) {
         self.store = store
         self.settings = settings
@@ -77,6 +79,7 @@ final class StatusBarController: NSObject {
             SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status
         }
         self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
+        self.openURL = openURL ?? { NSWorkspace.shared.open($0) }
         super.init()
         statusMenu.delegate = self
     }
@@ -93,8 +96,17 @@ final class StatusBarController: NSObject {
 
     func refresh() {
         guard let statusItem else { return }
-        configureButton(statusItem.button)
+        configureButton(statusItem.button, showsAccessibilityWarning: store.needsAccessibilityPermission)
         populateMenu(statusMenu)
+    }
+
+    /// Uses the passed value because `@Published` sinks fire in `willSet`, before the store holds it.
+    func updateAccessibilityWarning(_ isShowing: Bool) {
+        configureButton(statusItem?.button, showsAccessibilityWarning: isShowing)
+    }
+
+    static func statusSymbolName(showsAccessibilityWarning: Bool) -> String {
+        showsAccessibilityWarning ? "exclamationmark.triangle" : "square.grid.2x2"
     }
 
     private func installStatusItemIfNeeded() {
@@ -104,10 +116,16 @@ final class StatusBarController: NSObject {
         statusItem = item
     }
 
-    private func configureButton(_ button: NSStatusBarButton?) {
-        button?.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "GatherApps")
+    private func configureButton(_ button: NSStatusBarButton?, showsAccessibilityWarning: Bool) {
+        let label = showsAccessibilityWarning
+            ? L10n.string("statusBar.accessibilityWarning.accessibilityLabel")
+            : "GatherApps"
+        button?.image = NSImage(
+            systemSymbolName: Self.statusSymbolName(showsAccessibilityWarning: showsAccessibilityWarning),
+            accessibilityDescription: label
+        )
         button?.image?.isTemplate = true
-        button?.setAccessibilityLabel("GatherApps")
+        button?.setAccessibilityLabel(label)
     }
 
     func makeMenu() -> NSMenu {
@@ -119,6 +137,9 @@ final class StatusBarController: NSObject {
     private func populateMenu(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(headerItem(title: "GatherApps"))
+        if store.needsAccessibilityPermission {
+            menu.addItem(accessibilityWarningItem())
+        }
         menu.addItem(.separator())
 
         let runningAppIdentifiers = Set(runningAppProvider().map(\.id))
@@ -166,6 +187,15 @@ final class StatusBarController: NSObject {
     private func headerItem(title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        return item
+    }
+
+    private func accessibilityWarningItem() -> NSMenuItem {
+        let item = actionItem(
+            title: L10n.string("statusBar.accessibilityWarning.menuItem"),
+            action: #selector(requestAccessibilityPermission)
+        )
+        item.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
         return item
     }
 
@@ -281,18 +311,21 @@ final class StatusBarController: NSObject {
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         if let url {
-            NSWorkspace.shared.open(url)
+            openURL(url)
         }
     }
 
-    @objc private func requestAccessibilityPermission() {
+    @objc func requestAccessibilityPermission() {
         switch windowHelperRegistrationService.ensureRegistered() {
         case .available:
-            if windowHelperClient.requestAccessibilityPermission() == nil {
+            let runtimeInfo = windowHelperClient.requestAccessibilityPermission()
+            if runtimeInfo == nil {
                 store.lastErrorMessage = L10n.format(
                     "activation.helperUnavailable",
                     L10n.string("activation.reason.helperDidNotRespond")
                 )
+            } else if runtimeInfo?.accessibilityTrusted == true {
+                store.clearAccessibilityPermissionWarning()
             }
             openAccessibilitySettings()
         case .unavailable(let reason):
@@ -328,5 +361,8 @@ extension StatusBarController: NSMenuDelegate {
         )
         let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
         accessibilityStatusItem?.title = L10n.format("statusBar.accessibility.format", accessibilityTitle)
+        if runtimeInfo?.accessibilityTrusted == true {
+            store.clearAccessibilityPermissionWarning()
+        }
     }
 }
