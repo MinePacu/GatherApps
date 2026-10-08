@@ -1,3 +1,4 @@
-.derivedData/
+# No trailing slash: .derivedData may be a symlink to an external cache volume.
+.derivedData
 .swiftlint_cache/
 CodeQuality/

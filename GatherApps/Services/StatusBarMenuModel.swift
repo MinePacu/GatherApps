@@ -20,8 +20,8 @@ enum StatusBarMenuModel {
 
             return StatusBarGroupMenuItem(
                 groupID: group.id,
-                title: "Activate \(group.name)",
-                runningCountTitle: "\(runningCount)/\(totalCount) running",
+                title: L10n.format("statusBar.activateGroup", group.name),
+                runningCountTitle: L10n.format("statusBar.runningCount", runningCount, totalCount),
                 isEnabled: !group.apps.isEmpty
             )
         }

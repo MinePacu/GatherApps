@@ -114,4 +114,11 @@ final class LauncherAppLifecycleRegenerationTests: XCTestCase {
         XCTAssertFalse(regenerated)
     }
 
+    func testBackgroundRelaunchConfigurationDoesNotActivateLauncher() {
+        let configuration = LauncherAppGeneratorService.backgroundRelaunchConfiguration()
+
+        XCTAssertFalse(configuration.activates)
+        XCTAssertEqual(configuration.arguments, [LauncherActivationController.backgroundRelaunchArgument])
+    }
+
 }

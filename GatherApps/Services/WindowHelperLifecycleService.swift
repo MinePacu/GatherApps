@@ -18,7 +18,7 @@ protocol WindowHelperProcessControlling {
     var runningHelpers: [WindowHelperProcess] { get }
 
     func terminate(processIdentifiers: [pid_t])
-    func launchHelper(at url: URL) -> Error?
+    func launchHelper(at url: URL) async -> Error?
 }
 
 struct SystemWindowHelperLoginItemService: WindowHelperLoginItemServicing {
@@ -59,24 +59,20 @@ struct WorkspaceWindowHelperProcessController: WindowHelperProcessControlling {
             .forEach { $0.terminate() }
     }
 
-    func launchHelper(at url: URL) -> Error? {
+    func launchHelper(at url: URL) async -> Error? {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
         configuration.addsToRecentItems = false
-        var launchError: Error?
-        var didComplete = false
+        let waiter = OneShotTimeoutWaiter<Error?>()
 
-        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
-            launchError = error
-            didComplete = true
+        // The completion handler runs on a background queue; hop to the main actor to deliver it.
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { @Sendable _, error in
+            Task { @MainActor in
+                waiter.finish(error)
+            }
         }
 
-        let deadline = Date().addingTimeInterval(2)
-        while !didComplete, Date() < deadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-        }
-
-        return launchError
+        return await waiter.wait(timeout: 2, timeoutValue: nil)
     }
 }
 
@@ -101,7 +97,17 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         self.transitionTimeout = transitionTimeout
     }
 
-    func ensureRegistered() -> WindowHelperRegistrationResult {
+    func ensureRegistered() async -> WindowHelperRegistrationResult {
+        await WindowHelperLifecycleSerializer.run { await performEnsureRegistered() }
+    }
+
+    func restart() async -> WindowHelperRegistrationResult {
+        await WindowHelperLifecycleSerializer.run { await performRestart() }
+    }
+
+    // The perform methods run inside the serializer and must only call private helpers;
+    // calling `ensureRegistered()` or `restart()` from here would wait on itself forever.
+    private func performEnsureRegistered() async -> WindowHelperRegistrationResult {
         guard FileManager.default.fileExists(atPath: helperURL.path) else {
             return .unavailable(reason: WindowHelperBundleDiagnostics.notFoundReason())
         }
@@ -109,80 +115,86 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         switch loginItemService.status {
         case .enabled:
             if hasStaleHelpers {
-                return replaceRegistration()
+                return await replaceRegistration()
             }
-            if isCurrentHelperRunning || waitForCurrentHelper(timeout: startupGracePeriod) {
+            if isCurrentHelperRunning {
                 return .available
             }
-            return replaceRegistration()
+            if await waitForCurrentHelper(timeout: startupGracePeriod) {
+                return .available
+            }
+            return await replaceRegistration()
         case .notRegistered:
             terminateAllHelpers()
-            return registerCurrentHelper()
+            return await registerCurrentHelper()
+        case .notFound:
+            await terminateStaleHelpersAndWait()
+            if isCurrentHelperRunning {
+                return .available
+            }
+            return await registerCurrentHelper()
         case .requiresApproval:
-            terminateStaleHelpersAndWait()
-            return launchCurrentHelper(
+            await terminateStaleHelpersAndWait()
+            return await launchCurrentHelper(
                 fallbackReason: L10n.string("activation.reason.loginItemRequiresApproval")
             )
-        case .notFound:
-            terminateStaleHelpersAndWait()
-            return launchCurrentHelper(fallbackReason: WindowHelperBundleDiagnostics.notFoundReason())
         @unknown default:
-            terminateStaleHelpersAndWait()
-            return launchCurrentHelper(
+            await terminateStaleHelpersAndWait()
+            return await launchCurrentHelper(
                 fallbackReason: L10n.string("activation.reason.loginItemUnknownStatus")
             )
         }
     }
 
-    func restart() -> WindowHelperRegistrationResult {
+    private func performRestart() async -> WindowHelperRegistrationResult {
         let hadStaleHelpers = hasStaleHelpers
         terminateAllHelpers()
-        _ = waitUntil(timeout: transitionTimeout) { processController.runningHelpers.isEmpty }
+        _ = await waitUntil(timeout: transitionTimeout) { processController.runningHelpers.isEmpty }
 
         if loginItemService.status == .requiresApproval {
-            return launchCurrentHelper(
+            return await launchCurrentHelper(
                 fallbackReason: L10n.string("activation.reason.loginItemRequiresApproval")
             )
         }
 
         if loginItemService.status == .enabled, !hadStaleHelpers {
-            return launchCurrentHelper(
+            return await launchCurrentHelper(
                 fallbackReason: L10n.string("activation.reason.helperDidNotRespond")
             )
         }
 
-        return replaceRegistration(helpersAlreadyTerminated: true)
+        return await replaceRegistration(helpersAlreadyTerminated: true)
     }
 
-    private func replaceRegistration(helpersAlreadyTerminated: Bool = false) -> WindowHelperRegistrationResult {
+    private func replaceRegistration(helpersAlreadyTerminated: Bool = false) async -> WindowHelperRegistrationResult {
         if !helpersAlreadyTerminated {
             terminateAllHelpers()
-            _ = waitUntil(timeout: transitionTimeout) { processController.runningHelpers.isEmpty }
+            _ = await waitUntil(timeout: transitionTimeout) { processController.runningHelpers.isEmpty }
         }
 
         if loginItemService.status != .notRegistered {
             do {
                 try loginItemService.unregister()
-                _ = waitUntil(timeout: transitionTimeout) {
+                _ = await waitUntil(timeout: transitionTimeout) {
                     loginItemService.status == .notRegistered
                 }
             } catch {
-                return launchCurrentHelper(fallbackReason: error.localizedDescription)
+                return await launchCurrentHelper(fallbackReason: error.localizedDescription)
             }
         }
 
-        return registerCurrentHelper()
+        return await registerCurrentHelper()
     }
 
-    private func registerCurrentHelper() -> WindowHelperRegistrationResult {
+    private func registerCurrentHelper() async -> WindowHelperRegistrationResult {
         do {
             try loginItemService.register()
         } catch {
-            return launchCurrentHelper(fallbackReason: error.localizedDescription)
+            return await launchCurrentHelper(fallbackReason: error.localizedDescription)
         }
 
         if loginItemService.status == .enabled,
-           waitForCurrentHelper(timeout: transitionTimeout) {
+           await waitForCurrentHelper(timeout: transitionTimeout) {
             terminateStaleHelpers()
             return .available
         }
@@ -190,15 +202,15 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         let reason = loginItemService.status == .requiresApproval
             ? L10n.string("activation.reason.loginItemApprovalPending")
             : L10n.string("activation.reason.helperDidNotRespond")
-        return launchCurrentHelper(fallbackReason: reason)
+        return await launchCurrentHelper(fallbackReason: reason)
     }
 
-    private func launchCurrentHelper(fallbackReason: String) -> WindowHelperRegistrationResult {
+    private func launchCurrentHelper(fallbackReason: String) async -> WindowHelperRegistrationResult {
         if isCurrentHelperRunning {
             return .available
         }
 
-        if let error = processController.launchHelper(at: helperURL) {
+        if let error = await processController.launchHelper(at: helperURL) {
             return .unavailable(
                 reason: L10n.format(
                     "activation.reason.helperLaunchFailed",
@@ -208,7 +220,7 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
             )
         }
 
-        return waitForCurrentHelper(timeout: transitionTimeout)
+        return await waitForCurrentHelper(timeout: transitionTimeout)
             ? .available
             : .unavailable(
                 reason: L10n.format("activation.reason.helperLaunchDidNotStart", fallbackReason)
@@ -240,9 +252,9 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         processController.terminate(processIdentifiers: identifiers)
     }
 
-    private func terminateStaleHelpersAndWait() {
+    private func terminateStaleHelpersAndWait() async {
         terminateStaleHelpers()
-        _ = waitUntil(timeout: transitionTimeout) { !hasStaleHelpers }
+        _ = await waitUntil(timeout: transitionTimeout) { !hasStaleHelpers }
     }
 
     private func terminateAllHelpers() {
@@ -251,18 +263,19 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         )
     }
 
-    private func waitForCurrentHelper(timeout: TimeInterval) -> Bool {
-        waitUntil(timeout: timeout) { isCurrentHelperRunning }
+    private func waitForCurrentHelper(timeout: TimeInterval) async -> Bool {
+        await waitUntil(timeout: timeout) { isCurrentHelperRunning }
     }
 
-    private func waitUntil(timeout: TimeInterval, condition: () -> Bool) -> Bool {
+    /// Polls `condition` every 10 ms; sleeping suspends instead of blocking the main actor.
+    private func waitUntil(timeout: TimeInterval, condition: () -> Bool) async -> Bool {
         if condition() {
             return true
         }
 
         let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        while Date() < deadline, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(10))
             if condition() {
                 return true
             }

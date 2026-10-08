@@ -13,7 +13,7 @@ protocol WorkspaceRunningApplication {
 extension NSRunningApplication: WorkspaceRunningApplication {}
 
 struct RunningAppService {
-    func fetchRunningApps() -> [RunningAppInfo] {
+    func fetchRunningApps(includingOffscreenExecutableWindows: Bool = false) -> [RunningAppInfo] {
         let runningApplications = NSWorkspace.shared.runningApplications
         let bundledProcessIDs = Self.bundleBackedProcessIDs(from: runningApplications)
         let apps: [RunningAppInfo] = runningApplications
@@ -34,7 +34,10 @@ struct RunningAppService {
             }
 
         return Self.uniqueApps(
-            apps + Self.executableAppsFromVisibleWindows(excludingProcessIDs: bundledProcessIDs)
+            apps + Self.executableAppsFromVisibleWindows(
+                excludingProcessIDs: bundledProcessIDs,
+                includingOffscreenWindows: includingOffscreenExecutableWindows
+            )
         )
     }
 
@@ -71,10 +74,14 @@ struct RunningAppService {
     }
 
     nonisolated static func executableAppsFromVisibleWindows(
-        excludingProcessIDs excludedProcessIDs: Set<pid_t>
+        excludingProcessIDs excludedProcessIDs: Set<pid_t>,
+        includingOffscreenWindows: Bool = false
     ) -> [RunningAppInfo] {
+        let options: CGWindowListOption = includingOffscreenWindows
+            ? [.optionAll, .excludeDesktopElements]
+            : [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windowInfo = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
+            options,
             kCGNullWindowID
         ) as? [[String: Any]] else {
             return []
@@ -92,7 +99,9 @@ struct RunningAppService {
         excludingProcessIDs excludedProcessIDs: Set<pid_t>,
         executablePathForProcessID: (pid_t) -> String?
     ) -> [RunningAppInfo] {
-        windowInfo.compactMap { window in
+        var seenProcessIDs = Set<pid_t>()
+
+        return windowInfo.compactMap { window in
             guard
                 let ownerName = window[kCGWindowOwnerName as String] as? String,
                 let ownerPIDNumber = window[kCGWindowOwnerPID as String] as? NSNumber,
@@ -105,6 +114,7 @@ struct RunningAppService {
             let ownerPID = pid_t(ownerPIDNumber.intValue)
             guard
                 !excludedProcessIDs.contains(ownerPID),
+                seenProcessIDs.insert(ownerPID).inserted,
                 let executablePath = executablePathForProcessID(ownerPID)
             else {
                 return nil

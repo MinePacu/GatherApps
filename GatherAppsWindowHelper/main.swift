@@ -94,10 +94,6 @@ private final class NotificationWindowHelperServer {
 
 private struct WindowRaiser {
     static func raiseWindows(bundleIdentifier: String) -> HelperResult {
-        guard AXIsProcessTrusted() else {
-            return accessibilityPermissionMissingResult(bundleIdentifier: bundleIdentifier)
-        }
-
         guard let app = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == bundleIdentifier
         }) else {
@@ -105,6 +101,15 @@ private struct WindowRaiser {
         }
 
         let appName = app.localizedName ?? bundleIdentifier
+
+        guard AXIsProcessTrusted() else {
+            return activateWithoutAccessibility(
+                app,
+                bundleIdentifier: bundleIdentifier,
+                appName: appName
+            )
+        }
+
         _ = app.activate(options: [.activateAllWindows])
 
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -175,6 +180,36 @@ private struct WindowRaiser {
             status: "accessibilityPermissionMissing",
             raisedWindowCount: nil,
             message: "Accessibility permission is required for GatherAppsWindowHelper.",
+            accessibilityTrusted: false
+        )
+    }
+
+    private static func activateWithoutAccessibility(
+        _ app: NSRunningApplication,
+        bundleIdentifier: String,
+        appName: String
+    ) -> HelperResult {
+        guard app.activate(options: [.activateAllWindows]) else {
+            return accessibilityPermissionMissingResult(bundleIdentifier: bundleIdentifier)
+        }
+
+        // Keep the helper request serialized until macOS applies this activation.
+        // Otherwise back-to-back requests can collapse into only the last app.
+        let deadline = Date().addingTimeInterval(0.5)
+        while !app.isActive, Date() < deadline {
+            RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
+        }
+
+        guard app.isActive else {
+            return accessibilityPermissionMissingResult(bundleIdentifier: bundleIdentifier)
+        }
+
+        return HelperResult(
+            bundleIdentifier: bundleIdentifier,
+            appName: appName,
+            status: "raised",
+            raisedWindowCount: 0,
+            message: nil,
             accessibilityTrusted: false
         )
     }

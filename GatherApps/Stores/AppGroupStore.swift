@@ -11,14 +11,20 @@ final class AppGroupStore: ObservableObject {
 
     @Published private(set) var groups: [AppGroup] = []
     @Published var lastActivationResults: [ActivationResult] = []
+    @Published private(set) var lastActivationGroupID: AppGroup.ID?
     @Published var lastLauncherGenerationResult: LauncherGenerationResult?
+    @Published private(set) var lastLauncherGenerationGroupID: AppGroup.ID?
     @Published var lastErrorMessage: String?
+    @Published private(set) var needsAccessibilityPermission = false
 
     private let groupsFileURL: URL?
     private let iconService: GroupIconService
     private let iconCleanupService: GroupIconCleanupService
     private let activationService: AppActivationProviding
     private let launcherGeneratorService: LauncherAppGeneratorService
+    private var isSavingBlockedByUnreadableGroupsFile = false
+    /// The most recently requested activation; each new one waits for it so activations never overlap.
+    private var activationTask: Task<Void, Never>?
 
     init(
         groupsFileURL: URL? = nil,
@@ -42,17 +48,20 @@ final class AppGroupStore: ObservableObject {
         }
     }
 
-    func createGroup(named name: String) {
+    @discardableResult
+    func createGroup(named name: String) -> AppGroup.ID? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return nil }
 
         var group = AppGroup(name: trimmedName)
         do {
             group.iconFileName = try iconService.generateIcon(for: group)
             groups.append(group)
             save()
+            return group.id
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconCreationFailed", error.localizedDescription)
+            return nil
         }
     }
 
@@ -111,25 +120,43 @@ final class AppGroupStore: ObservableObject {
         regenerateIcon(forGroupAt: index)
     }
 
-    func activate(groupID: AppGroup.ID) {
+    func activate(groupID: AppGroup.ID) async {
+        let previousActivation = activationTask
+        let activation = Task {
+            await previousActivation?.value
+            await performActivation(groupID: groupID)
+        }
+        activationTask = activation
+        await activation.value
+    }
+
+    private func performActivation(groupID: AppGroup.ID) async {
         guard let group = groups.first(where: { $0.id == groupID }) else { return }
         var resultsByIdentifier: [String: ActivationResult] = [:]
+        let orderedApps = Self.frontmostActivationOrder(for: group)
+        let results = await activationService.activateGroup(orderedApps)
 
-        for app in Self.frontmostActivationOrder(for: group) {
-            resultsByIdentifier[app.id] = activationService.activate(app)
+        for (app, result) in zip(orderedApps, results) {
+            resultsByIdentifier[app.id] = result
         }
 
         lastActivationResults = group.apps.compactMap {
             resultsByIdentifier[$0.id]
         }
+        lastActivationGroupID = groupID
+        updateAccessibilityPermissionWarning(for: results)
     }
 
-    func handleActivationURL(_ url: URL) -> AppGroup.ID? {
+    func clearAccessibilityPermissionWarning() {
+        needsAccessibilityPermission = false
+    }
+
+    func handleActivationURL(_ url: URL) async -> AppGroup.ID? {
         guard let groupID = GatherAppsURLScheme.groupID(from: url) else {
             return nil
         }
 
-        activate(groupID: groupID)
+        await activate(groupID: groupID)
         return groupID
     }
 
@@ -138,6 +165,10 @@ final class AppGroupStore: ObservableObject {
 
         groups[index].launcherShowsGatherAppsWindow = showsGatherAppsWindow
         save()
+
+        // Clear any previous result so a failed generation never shows an older success.
+        lastLauncherGenerationResult = nil
+        lastLauncherGenerationGroupID = groupID
 
         do {
             lastLauncherGenerationResult = try launcherGeneratorService.generateLauncher(
@@ -162,24 +193,61 @@ final class AppGroupStore: ObservableObject {
     }
 
     private func load() -> LoadResult {
+        let fileURL: URL
         do {
-            let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                groups = []
-                return .notFound
-            }
-
-            let data = try Data(contentsOf: fileURL)
-            groups = try JSONDecoder().decode([AppGroup].self, from: data)
-            return .loaded
+            fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
         } catch {
             groups = []
             lastErrorMessage = L10n.format("errors.groupLoadFailed", error.localizedDescription)
             return .failed
         }
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            groups = []
+            return .notFound
+        }
+
+        do {
+            let data = try Data(contentsOf: fileURL)
+            groups = try JSONDecoder().decode([AppGroup].self, from: data)
+            return .loaded
+        } catch let loadError {
+            groups = []
+            do {
+                let backupURL = try backUpUnreadableGroupsFile(at: fileURL)
+                lastErrorMessage = L10n.format(
+                    "errors.groupLoadFailedBackedUp",
+                    loadError.localizedDescription,
+                    backupURL.lastPathComponent
+                )
+            } catch {
+                isSavingBlockedByUnreadableGroupsFile = true
+                lastErrorMessage = L10n.format("errors.groupLoadFailed", loadError.localizedDescription)
+            }
+            return .failed
+        }
+    }
+
+    private func backUpUnreadableGroupsFile(at fileURL: URL) throws -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let directoryURL = fileURL.deletingLastPathComponent()
+        let baseName = "\(fileURL.lastPathComponent).corrupt-\(formatter.string(from: Date()))"
+        var backupURL = directoryURL.appendingPathComponent(baseName)
+        if FileManager.default.fileExists(atPath: backupURL.path) {
+            backupURL = directoryURL.appendingPathComponent("\(baseName)-\(UUID().uuidString)")
+        }
+        try FileManager.default.moveItem(at: fileURL, to: backupURL)
+        return backupURL
     }
 
     private func save() {
+        guard !isSavingBlockedByUnreadableGroupsFile else {
+            lastErrorMessage = L10n.string("errors.groupSaveBlockedByUnreadableFile")
+            return
+        }
+
         do {
             let fileURL = try groupsFileURL ?? AppSupportPaths.groupsFileURL
             try FileManager.default.createDirectory(
@@ -227,6 +295,8 @@ final class AppGroupStore: ObservableObject {
             cleanupOrphanedIcons()
         } catch {
             lastErrorMessage = L10n.format("errors.groupIconRefreshFailed", error.localizedDescription)
+            // The app-list change must still be persisted; a save failure message overrides the icon one.
+            save()
         }
     }
 
@@ -245,7 +315,7 @@ final class AppGroupStore: ObservableObject {
         do {
             try launcherGeneratorService.deleteLauncher(for: group)
         } catch {
-            lastErrorMessage = "런처 앱을 삭제하지 못했습니다: \(error.localizedDescription)"
+            lastErrorMessage = L10n.format("errors.launcherDeletionFailed", error.localizedDescription)
         }
     }
 
@@ -272,6 +342,17 @@ final class AppGroupStore: ObservableObject {
             try iconCleanupService.cleanup(referencedFileNames: referencedFileNames)
         } catch {
             // Cleanup should not block the main group management flows.
+        }
+    }
+
+    private func updateAccessibilityPermissionWarning(for results: [ActivationResult]) {
+        let isPermissionMissing = results.contains { result in
+            if case .accessibilityPermissionMissing = result { true } else { false }
+        }
+        if isPermissionMissing {
+            needsAccessibilityPermission = true
+        } else if results.contains(where: \.isSuccess) {
+            needsAccessibilityPermission = false
         }
     }
 

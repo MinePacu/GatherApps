@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class WindowHelperIPCTests: XCTestCase {
-    func testProbeReturnsRuntimeInformationFromExpectedHelper() {
+    func testProbeReturnsRuntimeInformationFromExpectedHelper() async {
         let expectedURL = Bundle.main.bundleURL
         let center = DistributedNotificationCenter.default()
         let observer = installResponder(center: center) { request in
@@ -21,9 +21,10 @@ final class WindowHelperIPCTests: XCTestCase {
         defer { center.removeObserver(observer) }
 
         let client = NotificationWindowHelperClient(timeout: 0.5, expectedHelperURL: expectedURL)
+        let runtimeInfo = await client.probe()
 
         XCTAssertEqual(
-            client.probe(),
+            runtimeInfo,
             WindowHelperRuntimeInfo(
                 bundleURL: expectedURL,
                 protocolVersion: WindowHelperConfiguration.protocolVersion,
@@ -32,7 +33,7 @@ final class WindowHelperIPCTests: XCTestCase {
         )
     }
 
-    func testClientIgnoresResponseFromUnexpectedHelperPath() {
+    func testClientIgnoresResponseFromUnexpectedHelperPath() async {
         let expectedURL = Bundle.main.bundleURL
         let unexpectedURL = expectedURL
             .deletingLastPathComponent()
@@ -49,10 +50,12 @@ final class WindowHelperIPCTests: XCTestCase {
 
         let client = NotificationWindowHelperClient(timeout: 0.05, expectedHelperURL: expectedURL)
 
-        XCTAssertNil(client.probe())
+        let runtimeInfo = await client.probe()
+
+        XCTAssertNil(runtimeInfo)
     }
 
-    func testPermissionRequestUsesDedicatedOperation() {
+    func testPermissionRequestUsesDedicatedOperation() async {
         let expectedURL = Bundle.main.bundleURL
         let center = DistributedNotificationCenter.default()
         var receivedOperation: String?
@@ -67,7 +70,7 @@ final class WindowHelperIPCTests: XCTestCase {
         defer { center.removeObserver(observer) }
 
         let client = NotificationWindowHelperClient(timeout: 0.5, expectedHelperURL: expectedURL)
-        let runtimeInfo = client.requestAccessibilityPermission()
+        let runtimeInfo = await client.requestAccessibilityPermission()
 
         XCTAssertEqual(receivedOperation, WindowHelperOperation.requestAccessibilityPermission.rawValue)
         XCTAssertEqual(runtimeInfo?.accessibilityTrusted, false)
@@ -86,6 +89,24 @@ final class WindowHelperIPCTests: XCTestCase {
 
         XCTAssertEqual(result.activationResult, .raised(appName: "Example", raisedWindowCount: 2))
         XCTAssertEqual(result.runtimeInfo?.accessibilityTrusted, true)
+    }
+
+    func testProcessResultTreatsUntrustedRaisedResponseAsMissingAccessibility() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: false))
+
+        XCTAssertEqual(result.activationResult, .accessibilityPermissionMissing)
+    }
+
+    func testProcessResultKeepsTrustedRaisedResponseAsRaised() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: true))
+
+        XCTAssertEqual(result.activationResult, .raised(appName: "Example", raisedWindowCount: 0))
+    }
+
+    func testProcessResultKeepsRaisedResponseWithoutTrustFlagAsRaised() {
+        let result = WindowHelperProcessResult(userInfo: raisedUserInfo(accessibilityTrusted: nil))
+
+        XCTAssertEqual(result.activationResult, .raised(appName: "Example", raisedWindowCount: 0))
     }
 
     func testHelperPromptsOnlyForDedicatedPermissionRequest() throws {
@@ -119,6 +140,21 @@ final class WindowHelperIPCTests: XCTestCase {
                 deliverImmediately: true
             )
         }
+    }
+
+    private func raisedUserInfo(accessibilityTrusted: Bool?) -> [AnyHashable: Any] {
+        var userInfo: [AnyHashable: Any] = [
+            WindowHelperNotification.bundleIdentifierKey: "com.example.App",
+            WindowHelperNotification.appNameKey: "Example",
+            WindowHelperNotification.statusKey: "raised",
+            WindowHelperNotification.raisedWindowCountKey: 0,
+            WindowHelperNotification.helperBundlePathKey: Bundle.main.bundleURL.path,
+            WindowHelperNotification.protocolVersionKey: WindowHelperConfiguration.protocolVersion
+        ]
+        if let accessibilityTrusted {
+            userInfo[WindowHelperNotification.accessibilityTrustedKey] = accessibilityTrusted
+        }
+        return userInfo
     }
 
     private func response(

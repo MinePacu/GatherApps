@@ -45,7 +45,9 @@ struct GroupDetailView: View {
             Spacer()
 
             Button {
-                store.activate(groupID: group.id)
+                Task {
+                    await store.activate(groupID: group.id)
+                }
             } label: {
                 Label("groupDetail.activateGroup", systemImage: "play.fill")
             }
@@ -164,11 +166,13 @@ struct GroupDetailView: View {
 
     private var activationMessages: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(store.lastActivationResults.enumerated()), id: \.offset) { _, result in
-                Text(result.message)
-                    .font(.caption)
-                    .foregroundStyle(result.isSuccess ? .primary : .secondary)
-                    .lineLimit(1)
+            if store.lastActivationGroupID == groupID {
+                ForEach(Array(store.lastActivationResults.enumerated()), id: \.offset) { _, result in
+                    Text(result.message)
+                        .font(.caption)
+                        .foregroundStyle(result.isSuccess ? .primary : .secondary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding([.horizontal, .bottom], 12)
@@ -176,7 +180,7 @@ struct GroupDetailView: View {
 
     private var launcherMessage: some View {
         Group {
-            if let result = store.lastLauncherGenerationResult {
+            if store.lastLauncherGenerationGroupID == groupID, let result = store.lastLauncherGenerationResult {
                 HStack(spacing: 8) {
                     Text(L10n.format("groupDetail.launcherCreated", result.appURL.path))
                         .font(.caption)

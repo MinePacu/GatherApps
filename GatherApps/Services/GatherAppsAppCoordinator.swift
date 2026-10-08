@@ -10,6 +10,7 @@ final class GatherAppsAppCoordinator: ObservableObject {
 
     private let showSwitcherAction: (AppGroupStore) -> Void
     private let activateAppAction: () -> Void
+    private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
     private let switcherWindowController: SwitcherWindowController
     private var statusBarController: StatusBarController?
     private var cancellables: Set<AnyCancellable> = []
@@ -19,7 +20,8 @@ final class GatherAppsAppCoordinator: ObservableObject {
         settings: MenuBarSettings? = nil,
         switcherWindowController: SwitcherWindowController? = nil,
         showSwitcherAction: ((AppGroupStore) -> Void)? = nil,
-        activateAppAction: (() -> Void)? = nil
+        activateAppAction: (() -> Void)? = nil,
+        setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil
     ) {
         let store = store ?? AppGroupStore()
         let settings = settings ?? MenuBarSettings()
@@ -34,10 +36,18 @@ final class GatherAppsAppCoordinator: ObservableObject {
         self.activateAppAction = activateAppAction ?? {
             NSApp.activate(ignoringOtherApps: true)
         }
+        self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
 
         store.$groups
             .sink { [weak self] _ in
                 self?.statusBarController?.refresh()
+            }
+            .store(in: &cancellables)
+
+        store.$needsAccessibilityPermission
+            .removeDuplicates()
+            .sink { [weak self] isShowing in
+                self?.statusBarController?.updateAccessibilityWarning(isShowing)
             }
             .store(in: &cancellables)
 
@@ -50,6 +60,11 @@ final class GatherAppsAppCoordinator: ObservableObject {
 
     func startStatusBar() {
         guard statusBarController == nil else { return }
+        if !settings.showsDockIcon, !settings.showsStatusBarItem {
+            // Older builds allowed hiding both; keep at least one way to reach the app.
+            settings.showsDockIcon = true
+        }
+        setActivationPolicy(settings.showsDockIcon ? .regular : .accessory)
         statusBarController = StatusBarController(
             store: store,
             settings: settings,
@@ -63,14 +78,19 @@ final class GatherAppsAppCoordinator: ObservableObject {
                 showMainWindow: { [weak self] in
                     self?.showMainWindow()
                 }
-            )
+            ),
+            setActivationPolicy: setActivationPolicy
         )
         statusBarController?.setVisible(settings.showsStatusBarItem)
     }
 
-    func activateGroup(id groupID: AppGroup.ID) {
-        store.activate(groupID: groupID)
-        statusBarController?.refresh()
+    /// Activation suspends while it waits on macOS and the window helper, so it runs in a main-actor task.
+    @discardableResult
+    func activateGroup(id groupID: AppGroup.ID) -> Task<Void, Never> {
+        Task {
+            await store.activate(groupID: groupID)
+            statusBarController?.refresh()
+        }
     }
 
     func showSwitcher() {
@@ -83,15 +103,17 @@ final class GatherAppsAppCoordinator: ObservableObject {
     }
 
     func handleActivationURL(_ url: URL) {
-        guard let groupID = store.handleActivationURL(url) else { return }
-        statusBarController?.refresh()
+        Task {
+            guard let groupID = await store.handleActivationURL(url) else { return }
+            statusBarController?.refresh()
 
-        if GatherAppsURLScheme.showsGatherAppsWindow(from: url) {
-            showMainWindow()
-        } else {
-            NSApp.hide(nil)
+            if GatherAppsURLScheme.showsGatherAppsWindow(from: url) {
+                showMainWindow()
+            } else {
+                NSApp.hide(nil)
+            }
+
+            _ = groupID
         }
-
-        _ = groupID
     }
 }

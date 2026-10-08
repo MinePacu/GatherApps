@@ -1,26 +1,31 @@
 import AppKit
 
 private final class LauncherAppDelegate: NSObject, NSApplicationDelegate {
-    private var lastActivationDate = Date.distantPast
+    private lazy var activationController = LauncherActivationController(
+        dispatchActivation: Self.dispatchActivation,
+        hideLauncher: {
+            // A generated launcher has no windows. Keeping it unhidden lets macOS
+            // make it active after an unrelated window closes, which would
+            // reactivate the group from applicationDidBecomeActive.
+            NSApp.hide(nil)
+        }
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        activateGroup()
+        activationController.handleLaunch(arguments: CommandLine.arguments)
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        activateGroup()
+        activationController.handleActivation()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        activateGroup()
+        activationController.handleActivation()
         return true
     }
 
-    private func activateGroup() {
-        guard Date().timeIntervalSince(lastActivationDate) > 0.5 else { return }
-        lastActivationDate = Date()
-
+    private static func dispatchActivation() {
         guard
             let groupID = Bundle.main.object(forInfoDictionaryKey: "GatherAppsGroupID") as? String,
             var components = URLComponents(string: "gatherapps://activate-group/\(groupID)")

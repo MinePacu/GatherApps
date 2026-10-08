@@ -33,6 +33,7 @@ struct CreateGroupSheet: View {
     }
 
     private func create() {
+        guard !groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         onCreate(groupName)
         dismiss()
     }

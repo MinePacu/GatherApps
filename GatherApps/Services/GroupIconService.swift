@@ -12,7 +12,7 @@ struct GroupIconService {
     }
 
     func iconURL(for fileName: String) -> URL? {
-        try? iconsDirectory().appendingPathComponent(fileName)
+        (iconsDirectoryURL ?? AppSupportPaths.iconsDirectoryLocation)?.appendingPathComponent(fileName)
     }
 
     func generateIcon(for group: AppGroup) throws -> String {
@@ -57,13 +57,22 @@ struct GroupIconService {
         let image = NSImage(size: iconSize)
         image.lockFocus()
 
-        drawBackground()
+        let draw = {
+            drawBackground()
 
-        let icons = group.apps.prefix(4).compactMap(iconForGroupedApp)
-        if icons.isEmpty {
-            drawPlaceholderGlyph()
+            let icons = group.apps.prefix(4).compactMap(iconForGroupedApp)
+            if icons.isEmpty {
+                drawPlaceholderGlyph()
+            } else {
+                drawAppIcons(icons)
+            }
+        }
+        // The PNG is saved and reused, so resolve dynamic colors with a fixed appearance
+        // instead of whatever light/dark mode was active when the icon was generated.
+        if let appearance = NSAppearance(named: .aqua) {
+            appearance.performAsCurrentDrawingAppearance(draw)
         } else {
-            drawAppIcons(icons)
+            draw()
         }
 
         image.unlockFocus()

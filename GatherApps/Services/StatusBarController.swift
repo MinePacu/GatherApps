@@ -11,23 +11,27 @@ enum StatusBarWindowHelperStatus {
     static func title(serviceStatus: SMAppService.Status, isHelperRunning: Bool) -> String {
         switch serviceStatus {
         case .enabled:
-            return isHelperRunning ? "Running" : "Not Running"
+            return L10n.string(isHelperRunning ? "statusBar.helper.running" : "statusBar.helper.notRunning")
         case .requiresApproval:
-            return "Needs Approval"
+            return L10n.string("statusBar.helper.needsApproval")
         case .notRegistered:
-            return isHelperRunning ? "Running" : "Unavailable"
+            return L10n.string(isHelperRunning ? "statusBar.helper.running" : "statusBar.helper.unavailable")
         case .notFound:
-            return "Unavailable"
+            return L10n.string("statusBar.helper.unavailable")
         @unknown default:
-            return "Unavailable"
+            return L10n.string("statusBar.helper.unavailable")
         }
     }
 }
 
 enum StatusBarAccessibilityStatus {
     static func title(runtimeInfo: WindowHelperRuntimeInfo?) -> String {
-        guard let runtimeInfo else { return "Unavailable" }
-        return runtimeInfo.accessibilityTrusted ? "Granted" : "Needs Permission"
+        guard let runtimeInfo else { return L10n.string("statusBar.accessibility.unavailable") }
+        return L10n.string(
+            runtimeInfo.accessibilityTrusted
+                ? "statusBar.accessibility.granted"
+                : "statusBar.accessibility.needsPermission"
+        )
     }
 }
 
@@ -39,7 +43,19 @@ final class StatusBarController: NSObject {
     private let runningAppProvider: () -> [RunningAppInfo]
     private let windowHelperRegistrationService: WindowHelperRegistrationProviding
     private let windowHelperClient: WindowHelperClient
+    private let windowHelperServiceStatusProvider: () -> SMAppService.Status
+    private let mainAppLoginItemStatusProvider: () -> SMAppService.Status
+    private let registerMainAppLoginItem: () throws -> Void
+    private let unregisterMainAppLoginItem: () throws -> Void
+    private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
+    private let openURL: (URL) -> Void
+    /// Persistent menu attached to the status item. Its contents are rebuilt every time it is about to open
+    /// (`menuNeedsUpdate`) because `@Published` sinks fire in `willSet`, before the stores hold the new values.
+    let statusMenu = NSMenu(title: "GatherApps")
     private var statusItem: NSStatusItem?
+    private weak var windowRaisingMenu: NSMenu?
+    private weak var windowHelperStatusItem: NSMenuItem?
+    private weak var accessibilityStatusItem: NSMenuItem?
 
     init(
         store: AppGroupStore,
@@ -47,19 +63,34 @@ final class StatusBarController: NSObject {
         actions: StatusBarActions,
         runningAppProvider: (() -> [RunningAppInfo])? = nil,
         windowHelperRegistrationService: WindowHelperRegistrationProviding? = nil,
-        windowHelperClient: WindowHelperClient? = nil
+        windowHelperClient: WindowHelperClient? = nil,
+        windowHelperServiceStatusProvider: (() -> SMAppService.Status)? = nil,
+        mainAppLoginItemStatusProvider: (() -> SMAppService.Status)? = nil,
+        registerMainAppLoginItem: (() throws -> Void)? = nil,
+        unregisterMainAppLoginItem: (() throws -> Void)? = nil,
+        setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil,
+        openURL: ((URL) -> Void)? = nil
     ) {
         self.store = store
         self.settings = settings
         self.actions = actions
         self.runningAppProvider = runningAppProvider ?? {
-            RunningAppService().fetchRunningApps()
+            RunningAppService().fetchRunningApps(includingOffscreenExecutableWindows: true)
         }
         self.windowHelperRegistrationService = windowHelperRegistrationService
             ?? LoginItemWindowHelperRegistrationService()
         self.windowHelperClient = windowHelperClient
             ?? NotificationWindowHelperClient(timeout: 0.25)
+        self.windowHelperServiceStatusProvider = windowHelperServiceStatusProvider ?? {
+            SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status
+        }
+        self.mainAppLoginItemStatusProvider = mainAppLoginItemStatusProvider ?? { SMAppService.mainApp.status }
+        self.registerMainAppLoginItem = registerMainAppLoginItem ?? { try SMAppService.mainApp.register() }
+        self.unregisterMainAppLoginItem = unregisterMainAppLoginItem ?? { try SMAppService.mainApp.unregister() }
+        self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
+        self.openURL = openURL ?? { NSWorkspace.shared.open($0) }
         super.init()
+        statusMenu.delegate = self
     }
 
     func setVisible(_ isVisible: Bool) {
@@ -74,24 +105,59 @@ final class StatusBarController: NSObject {
 
     func refresh() {
         guard let statusItem else { return }
-        configureButton(statusItem.button)
-        statusItem.menu = makeMenu()
+        configureButton(statusItem.button, showsAccessibilityWarning: store.needsAccessibilityPermission)
+        populateMenu(statusMenu)
+    }
+
+    /// Uses the passed value because `@Published` sinks fire in `willSet`, before the store holds it.
+    func updateAccessibilityWarning(_ isShowing: Bool) {
+        configureButton(statusItem?.button, showsAccessibilityWarning: isShowing)
+    }
+
+    static func statusSymbolName(showsAccessibilityWarning: Bool) -> String {
+        showsAccessibilityWarning ? "exclamationmark.triangle" : "square.grid.2x2"
     }
 
     private func installStatusItemIfNeeded() {
         guard statusItem == nil else { return }
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.menu = statusMenu
+        statusItem = item
     }
 
-    private func configureButton(_ button: NSStatusBarButton?) {
-        button?.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "GatherApps")
+    private func configureButton(_ button: NSStatusBarButton?, showsAccessibilityWarning: Bool) {
+        let label = showsAccessibilityWarning
+            ? L10n.string("statusBar.accessibilityWarning.accessibilityLabel")
+            : "GatherApps"
+        button?.image = NSImage(
+            systemSymbolName: Self.statusSymbolName(showsAccessibilityWarning: showsAccessibilityWarning),
+            accessibilityDescription: label
+        )
         button?.image?.isTemplate = true
-        button?.setAccessibilityLabel("GatherApps")
+        button?.setAccessibilityLabel(label)
     }
 
-    private func makeMenu() -> NSMenu {
+    func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "GatherApps")
+        populateMenu(menu)
+        return menu
+    }
+
+    private func syncLaunchAtLoginSetting() {
+        let status = mainAppLoginItemStatusProvider()
+        let isRegistered = status == .enabled || status == .requiresApproval
+        if settings.launchesAtLogin != isRegistered {
+            settings.launchesAtLogin = isRegistered
+        }
+    }
+
+    private func populateMenu(_ menu: NSMenu) {
+        syncLaunchAtLoginSetting()
+        menu.removeAllItems()
         menu.addItem(headerItem(title: "GatherApps"))
+        if store.needsAccessibilityPermission {
+            menu.addItem(accessibilityWarningItem())
+        }
         menu.addItem(.separator())
 
         let runningAppIdentifiers = Set(runningAppProvider().map(\.id))
@@ -100,7 +166,7 @@ final class StatusBarController: NSObject {
             runningAppIdentifiers: runningAppIdentifiers
         )
         if groupItems.isEmpty {
-            let emptyItem = NSMenuItem(title: "No Groups", action: nil, keyEquivalent: "")
+            let emptyItem = NSMenuItem(title: L10n.string("statusBar.noGroups"), action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
         } else {
@@ -108,36 +174,46 @@ final class StatusBarController: NSObject {
         }
 
         menu.addItem(.separator())
-        menu.addItem(actionItem(title: "Open Switcher", action: #selector(openSwitcher)))
-        menu.addItem(actionItem(title: "Open GatherApps Window", action: #selector(openGatherAppsWindow)))
+        menu.addItem(actionItem(title: L10n.string("statusBar.openSwitcher"), action: #selector(openSwitcher)))
+        menu.addItem(actionItem(
+            title: L10n.string("statusBar.openMainWindow"),
+            action: #selector(openGatherAppsWindow)
+        ))
         menu.addItem(.separator())
         menu.addItem(windowRaisingMenuItem())
         menu.addItem(.separator())
         menu.addItem(toggleItem(
-            title: "Launch at Login",
+            title: L10n.string("statusBar.launchAtLogin"),
             isOn: settings.launchesAtLogin,
             action: #selector(toggleLaunchAtLogin)
         ))
         menu.addItem(toggleItem(
-            title: "Keep GatherApps in Menu Bar",
+            title: L10n.string("statusBar.keepInMenuBar"),
             isOn: settings.showsStatusBarItem,
             action: #selector(toggleStatusBarItem)
         ))
         menu.addItem(toggleItem(
-            title: "Show Dock Icon",
+            title: L10n.string("statusBar.showDockIcon"),
             isOn: settings.showsDockIcon,
             action: #selector(toggleDockIcon)
         ))
         menu.addItem(.separator())
-        menu.addItem(actionItem(title: "Settings...", action: #selector(openGatherAppsWindow)))
-        menu.addItem(actionItem(title: "Quit GatherApps", action: #selector(quitGatherApps)))
-
-        return menu
+        menu.addItem(actionItem(title: L10n.string("statusBar.settings"), action: #selector(openGatherAppsWindow)))
+        menu.addItem(actionItem(title: L10n.string("statusBar.quit"), action: #selector(quitGatherApps)))
     }
 
     private func headerItem(title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        return item
+    }
+
+    private func accessibilityWarningItem() -> NSMenuItem {
+        let item = actionItem(
+            title: L10n.string("statusBar.accessibilityWarning.menuItem"),
+            action: #selector(requestAccessibilityPermission)
+        )
+        item.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
         return item
     }
 
@@ -166,35 +242,36 @@ final class StatusBarController: NSObject {
     }
 
     private func windowRaisingMenuItem() -> NSMenuItem {
-        let runtimeInfo: WindowHelperRuntimeInfo?
-        switch windowHelperRegistrationService.ensureRegistered() {
-        case .available:
-            runtimeInfo = windowHelperClient.probe()
-        case .unavailable:
-            runtimeInfo = nil
-        }
-
-        let submenu = NSMenu(title: "Window Raising")
-        submenu.addItem(headerItem(
-            title: "Helper: \(windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil))"
-        ))
-        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
-        submenu.addItem(headerItem(title: "Accessibility: \(accessibilityTitle)"))
+        let submenu = NSMenu(title: L10n.string("statusBar.windowRaising"))
+        submenu.delegate = self
+        let helperItem = headerItem(title: L10n.string("statusBar.helper.checking"))
+        let accessibilityItem = headerItem(title: L10n.string("statusBar.accessibility.checking"))
+        submenu.addItem(helperItem)
+        submenu.addItem(accessibilityItem)
+        windowRaisingMenu = submenu
+        windowHelperStatusItem = helperItem
+        accessibilityStatusItem = accessibilityItem
         submenu.addItem(actionItem(
-            title: "Request Accessibility Permission",
+            title: L10n.string("statusBar.requestAccessibilityPermission"),
             action: #selector(requestAccessibilityPermission)
         ))
-        submenu.addItem(actionItem(title: "Open Accessibility Settings", action: #selector(openAccessibilitySettings)))
-        submenu.addItem(actionItem(title: "Restart Window Helper", action: #selector(restartWindowHelper)))
+        submenu.addItem(actionItem(
+            title: L10n.string("statusBar.openAccessibilitySettings"),
+            action: #selector(openAccessibilitySettings)
+        ))
+        submenu.addItem(actionItem(
+            title: L10n.string("statusBar.restartHelper"),
+            action: #selector(restartWindowHelper)
+        ))
 
-        let item = NSMenuItem(title: "Window Raising", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L10n.string("statusBar.windowRaising"), action: nil, keyEquivalent: "")
         item.submenu = submenu
         return item
     }
 
     private func windowHelperStatusTitle(isHelperRunning: Bool) -> String {
         StatusBarWindowHelperStatus.title(
-            serviceStatus: SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status,
+            serviceStatus: windowHelperServiceStatusProvider(),
             isHelperRunning: isHelperRunning
         )
     }
@@ -218,14 +295,15 @@ final class StatusBarController: NSObject {
         actions.showMainWindow()
     }
 
-    @objc private func toggleLaunchAtLogin() {
+    @objc func toggleLaunchAtLogin() {
         settings.launchesAtLogin.toggle()
         do {
             if settings.launchesAtLogin {
-                try SMAppService.mainApp.register()
+                try registerMainAppLoginItem()
             } else {
-                try SMAppService.mainApp.unregister()
+                try unregisterMainAppLoginItem()
             }
+            syncLaunchAtLoginSetting()
         } catch {
             settings.launchesAtLogin.toggle()
             store.lastErrorMessage = error.localizedDescription
@@ -233,31 +311,47 @@ final class StatusBarController: NSObject {
         refresh()
     }
 
-    @objc private func toggleStatusBarItem() {
+    @objc func toggleStatusBarItem() {
+        if settings.showsStatusBarItem, !settings.showsDockIcon {
+            // Hiding the menu bar item with no Dock icon would leave the app without any UI.
+            settings.showsDockIcon = true
+            setActivationPolicy(.regular)
+        }
         settings.showsStatusBarItem.toggle()
     }
 
-    @objc private func toggleDockIcon() {
+    @objc func toggleDockIcon() {
+        if settings.showsDockIcon, !settings.showsStatusBarItem { return }
         settings.showsDockIcon.toggle()
-        NSApp.setActivationPolicy(settings.showsDockIcon ? .regular : .accessory)
+        setActivationPolicy(settings.showsDockIcon ? .regular : .accessory)
         refresh()
     }
 
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         if let url {
-            NSWorkspace.shared.open(url)
+            openURL(url)
         }
     }
 
-    @objc private func requestAccessibilityPermission() {
-        switch windowHelperRegistrationService.ensureRegistered() {
+    @objc func requestAccessibilityPermission() {
+        Task {
+            await performAccessibilityPermissionRequest()
+        }
+    }
+
+    /// Awaitable body of `requestAccessibilityPermission()`; the helper round-trip suspends instead of blocking.
+    func performAccessibilityPermissionRequest() async {
+        switch await windowHelperRegistrationService.ensureRegistered() {
         case .available:
-            if windowHelperClient.requestAccessibilityPermission() == nil {
+            let runtimeInfo = await windowHelperClient.requestAccessibilityPermission()
+            if runtimeInfo == nil {
                 store.lastErrorMessage = L10n.format(
                     "activation.helperUnavailable",
                     L10n.string("activation.reason.helperDidNotRespond")
                 )
+            } else if runtimeInfo?.accessibilityTrusted == true {
+                store.clearAccessibilityPermissionWarning()
             }
             openAccessibilitySettings()
         case .unavailable(let reason):
@@ -267,13 +361,44 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func restartWindowHelper() {
-        if case .unavailable(let reason) = windowHelperRegistrationService.restart() {
-            store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
+        Task {
+            if case .unavailable(let reason) = await windowHelperRegistrationService.restart() {
+                store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
+            }
+            refresh()
         }
-        refresh()
+    }
+
+    /// Probes the helper and fills in the Window Raising status items, which start out as "Checking...".
+    func updateWindowRaisingStatus() async {
+        let runtimeInfo = await windowHelperClient.probe()
+        windowHelperStatusItem?.title = L10n.format(
+            "statusBar.helper.format",
+            windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil)
+        )
+        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
+        accessibilityStatusItem?.title = L10n.format("statusBar.accessibility.format", accessibilityTitle)
+        if runtimeInfo?.accessibilityTrusted == true {
+            store.clearAccessibilityPermissionWarning()
+        }
     }
 
     @objc private func quitGatherApps() {
         NSApp.terminate(nil)
+    }
+}
+
+extension StatusBarController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === statusMenu {
+            populateMenu(menu)
+            return
+        }
+        guard menu === windowRaisingMenu else { return }
+
+        // Keep the "Checking..." titles from populateMenu until the probe answers.
+        Task {
+            await updateWindowRaisingStatus()
+        }
     }
 }

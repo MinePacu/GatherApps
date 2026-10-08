@@ -33,6 +33,21 @@ struct AppcastFeedProvider {
         currentIndex += 1
         return true
     }
+
+    mutating func resetToPrimaryFeed() {
+        currentIndex = 0
+    }
+
+    static func shouldTryFallbackFeed(after error: Error?) -> Bool {
+        guard let error = error as NSError?, error.domain == SUSparkleErrorDomain else {
+            return false
+        }
+
+        // Sparkle reports an unreachable feed (network/HTTP failure) as SUDownloadError.
+        return error.code == Int(SUError.appcastParseError.rawValue)
+            || error.code == Int(SUError.appcastError.rawValue)
+            || error.code == Int(SUError.downloadError.rawValue)
+    }
 }
 
 @MainActor
@@ -80,13 +95,24 @@ private final class SparkleAppcastFeedDelegate: NSObject, SPUUpdaterDelegate {
         appcastFeedProvider.currentFeedURL?.absoluteString
     }
 
-    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        guard appcastFeedProvider.advanceToFallbackFeed() else {
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
+        guard AppcastFeedProvider.shouldTryFallbackFeed(after: error),
+              appcastFeedProvider.advanceToFallbackFeed() else {
+            appcastFeedProvider.resetToPrimaryFeed()
             return
         }
 
         Task { @MainActor in
-            updaterController?.checkForUpdates(nil)
+            switch updateCheck {
+            case .updates:
+                updaterController?.checkForUpdates(nil)
+            case .updatesInBackground:
+                updater.checkForUpdatesInBackground()
+            case .updateInformation:
+                updater.checkForUpdateInformation()
+            @unknown default:
+                appcastFeedProvider.resetToPrimaryFeed()
+            }
         }
     }
 }

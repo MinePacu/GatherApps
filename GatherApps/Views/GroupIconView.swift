@@ -11,6 +11,6 @@ struct GroupIconView: View {
 
     private var iconImage: NSImage? {
         guard let iconURL else { return nil }
-        return NSImage(contentsOf: iconURL)
+        return GroupIconImageCache.image(for: iconURL)
     }
 }

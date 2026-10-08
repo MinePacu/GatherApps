@@ -39,6 +39,14 @@ enum AppSupportPaths {
         }
     }
 
+    /// Icons directory location computed without creating directories or running migration.
+    /// Safe to call from view bodies; use `iconsDirectory` when the folder must exist.
+    static var iconsDirectoryLocation: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(appDirectoryName, isDirectory: true)
+            .appendingPathComponent("Icons", isDirectory: true)
+    }
+
     static var launchersDirectory: URL {
         get throws {
             let directory = try appSupportDirectory

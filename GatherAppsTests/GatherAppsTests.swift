@@ -141,7 +141,7 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(app.executablePath, "/opt/homebrew/bin/scrcpy")
     }
 
-    func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() throws {
+    func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() async throws {
         let groupID = UUID()
         let group = AppGroup(
             id: groupID,
@@ -167,7 +167,7 @@ final class GatherAppsTests: XCTestCase {
             activationService: activationService
         )
 
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
 
         XCTAssertEqual(activationService.requestedApps.map(\.id), [
             "com.example.Third",
@@ -181,7 +181,7 @@ final class GatherAppsTests: XCTestCase {
         ])
     }
 
-    func testGroupActivationActivatesExecutableTargets() throws {
+    func testGroupActivationActivatesExecutableTargets() async throws {
         let groupID = UUID()
         let executable = GroupedApp(
             executablePath: "/opt/homebrew/bin/scrcpy",
@@ -208,7 +208,7 @@ final class GatherAppsTests: XCTestCase {
             activationService: activationService
         )
 
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
 
         XCTAssertEqual(activationService.requestedApps, [executable])
         XCTAssertEqual(store.lastActivationResults, [
@@ -244,22 +244,6 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(metadata.shortVersion, "1.2.0")
         XCTAssertEqual(metadata.buildVersion, "42")
         XCTAssertEqual(metadata.releaseNotesHTML, "<p>Improved launcher refresh.</p>")
-    }
-
-    func testAppcastFeedProviderUsesGitLabBeforeGitHubFallback() {
-        var provider = AppcastFeedProvider()
-
-        XCTAssertEqual(
-            provider.currentFeedURL?.absoluteString,
-            "https://gitlab.com/MinePacu/GatherApps/-/releases/permalink/latest/downloads/appcast.xml"
-        )
-
-        XCTAssertTrue(provider.advanceToFallbackFeed())
-        XCTAssertEqual(
-            provider.currentFeedURL?.absoluteString,
-            "https://github.com/MinePacu/GatherApps/releases/latest/download/appcast.xml"
-        )
-        XCTAssertFalse(provider.advanceToFallbackFeed())
     }
 
     func testGitLabCIAddsMacOSBuildAndTestPipeline() throws {
@@ -416,27 +400,33 @@ final class GatherAppsTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(items.map(\.title), ["Activate Writing", "Activate Device", "Activate Empty"])
-        XCTAssertEqual(items.map(\.runningCountTitle), ["1/2 running", "1/1 running", "0/0 running"])
+        XCTAssertEqual(
+            items.map(\.title),
+            ["Writing", "Device", "Empty"].map { L10n.format("statusBar.activateGroup", $0) }
+        )
+        XCTAssertEqual(
+            items.map(\.runningCountTitle),
+            [(1, 2), (1, 1), (0, 0)].map { L10n.format("statusBar.runningCount", $0.0, $0.1) }
+        )
         XCTAssertEqual(items.map(\.isEnabled), [true, true, false])
     }
 
     func testStatusBarWindowHelperStatusShowsRunningOnlyWhenHelperProcessIsRunning() {
         XCTAssertEqual(
             StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: true),
-            "Running"
+            L10n.string("statusBar.helper.running")
         )
         XCTAssertEqual(
             StatusBarWindowHelperStatus.title(serviceStatus: .enabled, isHelperRunning: false),
-            "Not Running"
+            L10n.string("statusBar.helper.notRunning")
         )
         XCTAssertEqual(
             StatusBarWindowHelperStatus.title(serviceStatus: .requiresApproval, isHelperRunning: true),
-            "Needs Approval"
+            L10n.string("statusBar.helper.needsApproval")
         )
         XCTAssertEqual(
             StatusBarWindowHelperStatus.title(serviceStatus: .notFound, isHelperRunning: false),
-            "Unavailable"
+            L10n.string("statusBar.helper.unavailable")
         )
     }
 

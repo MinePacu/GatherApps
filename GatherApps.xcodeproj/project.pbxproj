@@ -10,6 +10,7 @@
 		0DCF40D16DAB404C8D0FD0FC /* GatherAppsWindowHelper.app in Copy Login Item */ = {isa = PBXBuildFile; fileRef = 136320E4D79A482799D3A83A /* GatherAppsWindowHelper.app */; };
 		3A0B0AB4D5FE4C3EA782BB02 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 27C3370A38B34DB8B32BB87D /* Sparkle */; };
 		9A4C3C4A8DBE4AA6B9141E02 /* GatherAppsLauncherRuntime in Copy Launcher Runtime */ = {isa = PBXBuildFile; fileRef = 9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */; };
+		A38C6E7A1F2B4D5E8091A2B3 /* LauncherActivationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38C6E791F2B4D5E8091A2B3 /* LauncherActivationController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 		7D9A69052FB317A1001A1BCF /* GatherAppsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherAppsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D9A690F2FB317A1001A1BCF /* GatherAppsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GatherAppsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A4C3C4692C64C21A39753ED /* GatherAppsLauncherRuntime */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = GatherAppsLauncherRuntime; sourceTree = BUILT_PRODUCTS_DIR; };
+		A38C6E791F2B4D5E8091A2B3 /* LauncherActivationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatherApps/Support/LauncherActivationController.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -160,6 +162,7 @@
 		7D9A68ED2FB3179F001A1BCF = {
 			isa = PBXGroup;
 			children = (
+				A38C6E791F2B4D5E8091A2B3 /* LauncherActivationController.swift */,
 				7D9A68F82FB3179F001A1BCF /* GatherApps */,
 				64A7DD831BA343D39853004A /* GatherAppsWindowHelper */,
 				97BB379DC1FA41D79C14BAE8 /* GatherAppsLauncherRuntime */,
@@ -421,6 +424,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A38C6E7A1F2B4D5E8091A2B3 /* LauncherActivationController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

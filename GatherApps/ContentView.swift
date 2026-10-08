@@ -7,6 +7,7 @@ struct ContentView: View {
     let handleActivationURL: (URL) -> Void
     @State private var selectedGroupID: AppGroup.ID?
     @State private var isShowingCreateGroup = false
+    @State private var deletionConfirmation = ToolbarDeletionConfirmationState()
 
     var body: some View {
         NavigationSplitView {
@@ -30,10 +31,12 @@ struct ContentView: View {
         )
         .toolbar {
             ToolbarItem {
-                Button(role: .destructive, action: deleteSelectedGroup) {
+                Button(role: .destructive) {
+                    requestDeletion()
+                } label: {
                     Label("sidebar.deleteGroup", systemImage: "trash")
                 }
-                .disabled(selectedGroupID == nil)
+                .disabled(selectedGroup == nil)
             }
 
             ToolbarItem {
@@ -43,6 +46,18 @@ struct ContentView: View {
                     Label("content.openSwitcher", systemImage: "square.grid.2x2")
                 }
             }
+        }
+        .confirmationDialog(
+            deleteConfirmationTitle,
+            isPresented: isShowingDeletionConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.string("common.delete"), role: .destructive, action: confirmDeletion)
+            Button(L10n.string("common.cancel"), role: .cancel) {
+                deletionConfirmation.cancel()
+            }
+        } message: {
+            Text(deleteConfirmationMessage)
         }
         .onAppear {
             selectedGroupID = selectedGroupID ?? store.groups.first?.id
@@ -59,8 +74,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isShowingCreateGroup) {
             CreateGroupSheet { name in
-                store.createGroup(named: name)
-                selectedGroupID = store.groups.last?.id
+                if let id = store.createGroup(named: name) {
+                    selectedGroupID = id
+                }
             }
         }
         .alert(
@@ -76,15 +92,80 @@ struct ContentView: View {
         }
     }
 
-    private func deleteSelectedGroup() {
-        guard let deletedGroupID = selectedGroupID else { return }
+    private func requestDeletion() {
+        guard let selectedGroup else { return }
+        deletionConfirmation.request(for: selectedGroup)
+    }
 
-        store.deleteGroup(id: deletedGroupID)
-        selectedGroupID = ContentSelection.selection(
-            afterDeleting: deletedGroupID,
-            currentSelection: selectedGroupID,
-            remainingGroupIDs: store.groups.map(\.id)
-        )
+    private func confirmDeletion() {
+        deletionConfirmation.confirm { deletedGroupID in
+            store.deleteGroup(id: deletedGroupID)
+            selectedGroupID = ContentSelection.selection(
+                afterDeleting: deletedGroupID,
+                currentSelection: selectedGroupID,
+                remainingGroupIDs: store.groups.map(\.id)
+            )
+        }
+    }
+
+    private var selectedGroup: AppGroup? {
+        guard let selectedGroupID else { return nil }
+        return store.groups.first { $0.id == selectedGroupID }
+    }
+
+    private var deleteConfirmationTitle: String {
+        guard let pendingRequest = deletionConfirmation.pendingRequest else {
+            return L10n.string("sidebar.deleteGroup")
+        }
+
+        return L10n.format("sidebar.deleteConfirmation.singleTitle", pendingRequest.groupName)
+    }
+
+    private var deleteConfirmationMessage: String {
+        guard deletionConfirmation.pendingRequest != nil else { return "" }
+        return L10n.string("sidebar.deleteConfirmation.singleMessage")
+    }
+
+    private var isShowingDeletionConfirmation: Binding<Bool> {
+        Binding {
+            deletionConfirmation.pendingRequest != nil
+        } set: { isPresented in
+            if !isPresented {
+                deletionConfirmation.cancel()
+            }
+        }
+    }
+}
+
+struct ToolbarDeletionRequest: Equatable {
+    let groupID: AppGroup.ID
+    let groupName: String
+
+    init(group: AppGroup) {
+        groupID = group.id
+        groupName = group.name
+    }
+}
+
+struct ToolbarDeletionConfirmationState: Equatable {
+    private(set) var pendingRequest: ToolbarDeletionRequest?
+
+    init() {
+        pendingRequest = nil
+    }
+
+    mutating func request(for group: AppGroup) {
+        pendingRequest = ToolbarDeletionRequest(group: group)
+    }
+
+    mutating func cancel() {
+        pendingRequest = nil
+    }
+
+    mutating func confirm(delete: (AppGroup.ID) -> Void) {
+        guard let pendingRequest else { return }
+        self.pendingRequest = nil
+        delete(pendingRequest.groupID)
     }
 }
 
