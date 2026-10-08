@@ -17,6 +17,32 @@ final class GroupIconPerformanceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
+    func testRenderedIconDoesNotDependOnCurrentAppearance() throws {
+        let service = GroupIconService(
+            iconsDirectoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("GatherAppsIconAppearance-\(UUID().uuidString)", isDirectory: true)
+        )
+        let group = AppGroup(name: "Appearance")
+
+        func renderedTIFF(appearanceName: NSAppearance.Name) throws -> Data? {
+            var data: Data?
+            var renderError: Error?
+            try XCTUnwrap(NSAppearance(named: appearanceName)).performAsCurrentDrawingAppearance {
+                do {
+                    data = try service.iconImage(for: group).tiffRepresentation
+                } catch {
+                    renderError = error
+                }
+            }
+            if let renderError { throw renderError }
+            return data
+        }
+
+        let light = try XCTUnwrap(renderedTIFF(appearanceName: .aqua))
+        let dark = try XCTUnwrap(renderedTIFF(appearanceName: .darkAqua))
+        XCTAssertEqual(light, dark)
+    }
+
     func testIconsDirectoryLocationMatchesIconsDirectory() throws {
         XCTAssertEqual(
             AppSupportPaths.iconsDirectoryLocation?.standardizedFileURL.path,
