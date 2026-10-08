@@ -145,7 +145,7 @@ final class AppGroupStorePersistenceTests: XCTestCase {
         XCTAssertEqual(store.groups.last?.name, "Second")
     }
 
-    func testActivationResultsAreTaggedWithGroupID() throws {
+    func testActivationResultsAreTaggedWithGroupID() async throws {
         let group = AppGroup(
             name: "Design",
             apps: [
@@ -168,7 +168,7 @@ final class AppGroupStorePersistenceTests: XCTestCase {
 
         XCTAssertNil(store.lastActivationGroupID)
 
-        store.activate(groupID: group.id)
+        await store.activate(groupID: group.id)
 
         XCTAssertEqual(store.lastActivationGroupID, group.id)
         XCTAssertEqual(store.lastActivationResults.count, 1)

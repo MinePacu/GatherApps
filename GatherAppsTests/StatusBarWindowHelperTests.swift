@@ -53,7 +53,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
     }
 
     @MainActor
-    func testOpeningWindowRaisingMenuProbesHelperOnceAndUpdatesStatus() throws {
+    func testOpeningWindowRaisingMenuProbesHelperOnceAndUpdatesStatus() async throws {
         let registrationService = StubStatusBarRegistrationService()
         let client = StubStatusBarWindowHelperClient(runtimeInfo: WindowHelperRuntimeInfo(
             bundleURL: URL(fileURLWithPath: "/Applications/GatherApps.app/Contents/Library/LoginItems/Helper.app"),
@@ -64,7 +64,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
         let menu = controller.makeMenu()
         let submenu = try XCTUnwrap(windowRaisingSubmenu(in: menu))
 
-        controller.menuNeedsUpdate(submenu)
+        await controller.updateWindowRaisingStatus()
 
         XCTAssertEqual(client.probeCallCount, 1)
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
@@ -79,14 +79,14 @@ final class StatusBarWindowHelperTests: XCTestCase {
     }
 
     @MainActor
-    func testOpeningWindowRaisingMenuShowsUnavailableWhenHelperDoesNotRespond() throws {
+    func testOpeningWindowRaisingMenuShowsUnavailableWhenHelperDoesNotRespond() async throws {
         let registrationService = StubStatusBarRegistrationService()
         let client = StubStatusBarWindowHelperClient(runtimeInfo: nil)
         let controller = try makeController(registrationService: registrationService, client: client)
         let menu = controller.makeMenu()
         let submenu = try XCTUnwrap(windowRaisingSubmenu(in: menu))
 
-        controller.menuNeedsUpdate(submenu)
+        await controller.updateWindowRaisingStatus()
 
         XCTAssertEqual(client.probeCallCount, 1)
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 0)
@@ -255,7 +255,7 @@ final class StatusBarWindowHelperTests: XCTestCase {
 private final class StubStatusBarRegistrationService: WindowHelperRegistrationProviding {
     private(set) var ensureRegisteredCallCount = 0
 
-    func ensureRegistered() -> WindowHelperRegistrationResult {
+    func ensureRegistered() async -> WindowHelperRegistrationResult {
         ensureRegisteredCallCount += 1
         return .available
     }
@@ -269,11 +269,11 @@ private final class StubStatusBarWindowHelperClient: WindowHelperClient {
         self.runtimeInfo = runtimeInfo
     }
 
-    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+    func raiseWindows(bundleIdentifier: String) async -> WindowHelperActivationResult {
         .helperUnavailable(reason: "unused")
     }
 
-    func probe() -> WindowHelperRuntimeInfo? {
+    func probe() async -> WindowHelperRuntimeInfo? {
         probeCallCount += 1
         return runtimeInfo
     }

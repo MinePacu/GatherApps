@@ -18,7 +18,7 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
         try? FileManager.default.removeItem(at: testDirectory)
     }
 
-    func testActivationResultsSetAndClearWarning() throws {
+    func testActivationResultsSetAndClearWarning() async throws {
         let activationService = StubWarningActivationService()
         let store = try makeStore(activationService: activationService)
         let groupID = try XCTUnwrap(store.groups.first?.id)
@@ -28,25 +28,25 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
             .success(appName: "First"),
             .accessibilityPermissionMissing(appName: "Second")
         ]
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
         XCTAssertTrue(store.needsAccessibilityPermission)
 
         activationService.results = [
             .appNotRunning(bundleIdentifier: "com.example.first"),
             .appNotRunning(bundleIdentifier: "com.example.second")
         ]
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
         XCTAssertTrue(store.needsAccessibilityPermission)
 
         activationService.results = [
             .success(appName: "First"),
             .appNotRunning(bundleIdentifier: "com.example.second")
         ]
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
         XCTAssertFalse(store.needsAccessibilityPermission)
     }
 
-    func testStatusMenuShowsWarningItemOnlyWhenPermissionIsNeeded() throws {
+    func testStatusMenuShowsWarningItemOnlyWhenPermissionIsNeeded() async throws {
         let activationService = StubWarningActivationService()
         let store = try makeStore(activationService: activationService)
         let controller = try makeController(store: store, client: StubWarningWindowHelperClient())
@@ -55,7 +55,7 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
         controller.menuNeedsUpdate(controller.statusMenu)
         XCTAssertFalse(controller.statusMenu.items.contains { $0.title == warningTitle })
 
-        try activateWithPermissionMissing(store: store, activationService: activationService)
+        try await activateWithPermissionMissing(store: store, activationService: activationService)
         controller.menuNeedsUpdate(controller.statusMenu)
 
         let warningItem = controller.statusMenu.items[1]
@@ -73,42 +73,42 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
         )
     }
 
-    func testOpeningWindowRaisingMenuClearsWarningWhenHelperIsTrusted() throws {
+    func testOpeningWindowRaisingMenuClearsWarningWhenHelperIsTrusted() async throws {
         let activationService = StubWarningActivationService()
         let store = try makeStore(activationService: activationService)
         let client = StubWarningWindowHelperClient(probeRuntimeInfo: Self.runtimeInfo(accessibilityTrusted: true))
         let controller = try makeController(store: store, client: client)
-        try activateWithPermissionMissing(store: store, activationService: activationService)
+        try await activateWithPermissionMissing(store: store, activationService: activationService)
 
-        let submenu = try XCTUnwrap(windowRaisingSubmenu(in: controller.makeMenu()))
-        controller.menuNeedsUpdate(submenu)
+        _ = try XCTUnwrap(windowRaisingSubmenu(in: controller.makeMenu()))
+        await controller.updateWindowRaisingStatus()
 
         XCTAssertFalse(store.needsAccessibilityPermission)
     }
 
-    func testOpeningWindowRaisingMenuKeepsWarningWhenHelperIsNotTrusted() throws {
+    func testOpeningWindowRaisingMenuKeepsWarningWhenHelperIsNotTrusted() async throws {
         let activationService = StubWarningActivationService()
         let store = try makeStore(activationService: activationService)
         let client = StubWarningWindowHelperClient(probeRuntimeInfo: Self.runtimeInfo(accessibilityTrusted: false))
         let controller = try makeController(store: store, client: client)
-        try activateWithPermissionMissing(store: store, activationService: activationService)
+        try await activateWithPermissionMissing(store: store, activationService: activationService)
 
-        let submenu = try XCTUnwrap(windowRaisingSubmenu(in: controller.makeMenu()))
-        controller.menuNeedsUpdate(submenu)
+        _ = try XCTUnwrap(windowRaisingSubmenu(in: controller.makeMenu()))
+        await controller.updateWindowRaisingStatus()
 
         XCTAssertTrue(store.needsAccessibilityPermission)
     }
 
-    func testRequestingPermissionClearsWarningWhenHelperReportsTrusted() throws {
+    func testRequestingPermissionClearsWarningWhenHelperReportsTrusted() async throws {
         let activationService = StubWarningActivationService()
         let store = try makeStore(activationService: activationService)
         let client = StubWarningWindowHelperClient(
             requestRuntimeInfo: Self.runtimeInfo(accessibilityTrusted: true)
         )
         let controller = try makeController(store: store, client: client)
-        try activateWithPermissionMissing(store: store, activationService: activationService)
+        try await activateWithPermissionMissing(store: store, activationService: activationService)
 
-        controller.requestAccessibilityPermission()
+        await controller.performAccessibilityPermissionRequest()
 
         XCTAssertFalse(store.needsAccessibilityPermission)
     }
@@ -116,9 +116,10 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
     private func activateWithPermissionMissing(
         store: AppGroupStore,
         activationService: StubWarningActivationService
-    ) throws {
+    ) async throws {
         activationService.results = [.accessibilityPermissionMissing(appName: "First")]
-        store.activate(groupID: try XCTUnwrap(store.groups.first?.id))
+        let groupID = try XCTUnwrap(store.groups.first?.id)
+        await store.activate(groupID: groupID)
         XCTAssertTrue(store.needsAccessibilityPermission)
     }
 
@@ -196,21 +197,21 @@ final class AccessibilityPermissionWarningTests: XCTestCase {
 private final class StubWarningActivationService: AppActivationProviding {
     var results: [ActivationResult] = []
 
-    func activate(_ app: GroupedApp) -> ActivationResult {
+    func activate(_ app: GroupedApp) async -> ActivationResult {
         .success(appName: app.name)
     }
 
-    func activate(bundleIdentifier: String) -> ActivationResult {
+    func activate(bundleIdentifier: String) async -> ActivationResult {
         .success(appName: bundleIdentifier)
     }
 
-    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult] {
+    func activateGroup(_ apps: [GroupedApp]) async -> [ActivationResult] {
         results
     }
 }
 
 private final class StubWarningRegistrationService: WindowHelperRegistrationProviding {
-    func ensureRegistered() -> WindowHelperRegistrationResult {
+    func ensureRegistered() async -> WindowHelperRegistrationResult {
         .available
     }
 }
@@ -224,15 +225,15 @@ private final class StubWarningWindowHelperClient: WindowHelperClient {
         self.requestRuntimeInfo = requestRuntimeInfo
     }
 
-    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+    func raiseWindows(bundleIdentifier: String) async -> WindowHelperActivationResult {
         .helperUnavailable(reason: "unused")
     }
 
-    func probe() -> WindowHelperRuntimeInfo? {
+    func probe() async -> WindowHelperRuntimeInfo? {
         probeRuntimeInfo
     }
 
-    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo? {
+    func requestAccessibilityPermission() async -> WindowHelperRuntimeInfo? {
         requestRuntimeInfo
     }
 }

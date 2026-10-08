@@ -45,7 +45,9 @@ struct GroupDetailView: View {
             Spacer()
 
             Button {
-                store.activate(groupID: group.id)
+                Task {
+                    await store.activate(groupID: group.id)
+                }
             } label: {
                 Label("groupDetail.activateGroup", systemImage: "play.fill")
             }

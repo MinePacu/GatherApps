@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class WindowHelperLifecycleTests: XCTestCase {
-    func testEnabledCurrentHelperDoesNotChangeRegistration() {
+    func testEnabledCurrentHelperDoesNotChangeRegistration() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .enabled, recorder: recorder)
@@ -16,11 +16,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertTrue(recorder.calls.isEmpty)
     }
 
-    func testEnabledStaleHelperIsTerminatedAndRegistrationIsReplaced() {
+    func testEnabledStaleHelperIsTerminatedAndRegistrationIsReplaced() async {
         let helperURL = Bundle.main.bundleURL
         let staleURL = helperURL.deletingLastPathComponent().appendingPathComponent("StaleHelper.app")
         let recorder = WindowHelperCallRecorder()
@@ -35,11 +36,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         }
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["terminate:20", "unregister", "register"])
     }
 
-    func testEnabledWithoutRunningHelperReplacesRegistrationAfterGracePeriod() {
+    func testEnabledWithoutRunningHelperReplacesRegistrationAfterGracePeriod() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .enabled, recorder: recorder)
@@ -53,11 +55,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         }
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["terminate:", "unregister", "register"])
     }
 
-    func testRegistrationFailureFallsBackToDirectCurrentHelperLaunch() {
+    func testRegistrationFailureFallsBackToDirectCurrentHelperLaunch() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .notRegistered, recorder: recorder)
@@ -69,11 +72,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["terminate:", "register", "launch:\(helperURL.path)"])
     }
 
-    func testRegistrationAndDirectLaunchFailureReturnsUnavailable() {
+    func testRegistrationAndDirectLaunchFailureReturnsUnavailable() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .notRegistered, recorder: recorder)
@@ -86,13 +90,13 @@ final class WindowHelperLifecycleTests: XCTestCase {
         processes.launchError = StubWindowHelperError.launchFailed
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        guard case .unavailable(let reason) = service.ensureRegistered() else {
+        guard case .unavailable(let reason) = await service.ensureRegistered() else {
             return XCTFail("Expected the helper to be unavailable")
         }
         XCTAssertTrue(reason.contains("launch failed"))
     }
 
-    func testRequiresApprovalDoesNotChangeRegistration() {
+    func testRequiresApprovalDoesNotChangeRegistration() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .requiresApproval, recorder: recorder)
@@ -103,13 +107,14 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["launch:\(helperURL.path)"])
         XCTAssertFalse(recorder.calls.contains("register"))
         XCTAssertFalse(recorder.calls.contains("unregister"))
     }
 
-    func testRestartOfCurrentEnabledHelperKeepsRegistrationAndLaunchesCurrentBundle() {
+    func testRestartOfCurrentEnabledHelperKeepsRegistrationAndLaunchesCurrentBundle() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .enabled, recorder: recorder)
@@ -120,7 +125,8 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.restart(), .available)
+        let result = await service.restart()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["terminate:40", "launch:\(helperURL.path)"])
     }
 
@@ -136,7 +142,7 @@ final class WindowHelperLifecycleTests: XCTestCase {
         XCTAssertTrue(WindowHelperBundleDiagnostics.urlsReferToSameBundle(bundleURL, symbolicLinkURL))
     }
 
-    func testNotFoundStatusAttemptsRegistrationAndReturnsAvailable() {
+    func testNotFoundStatusAttemptsRegistrationAndReturnsAvailable() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .notFound, recorder: recorder)
@@ -150,11 +156,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         }
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["register"])
     }
 
-    func testNotFoundStatusWithRegistrationFailureFallsBackToDirectLaunch() {
+    func testNotFoundStatusWithRegistrationFailureFallsBackToDirectLaunch() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .notFound, recorder: recorder)
@@ -166,11 +173,12 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["register", "launch:\(helperURL.path)"])
     }
 
-    func testNotFoundStatusKeepsRunningCurrentHelper() {
+    func testNotFoundStatusKeepsRunningCurrentHelper() async {
         let helperURL = Bundle.main.bundleURL
         let recorder = WindowHelperCallRecorder()
         let loginItem = StubWindowHelperLoginItemService(status: .notFound, recorder: recorder)
@@ -181,14 +189,15 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
-        XCTAssertEqual(service.ensureRegistered(), .available)
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        for _ in 0..<3 {
+            let result = await service.ensureRegistered()
+            XCTAssertEqual(result, .available)
+        }
         XCTAssertTrue(recorder.calls.isEmpty)
         XCTAssertTrue(processes.runningHelpers.contains { $0.processIdentifier == 50 })
     }
 
-    func testNotFoundStatusTerminatesOnlyStaleHelpers() {
+    func testNotFoundStatusTerminatesOnlyStaleHelpers() async {
         let helperURL = Bundle.main.bundleURL
         let staleURL = FileManager.default.temporaryDirectory.appendingPathComponent("Stale.app")
         let recorder = WindowHelperCallRecorder()
@@ -203,7 +212,8 @@ final class WindowHelperLifecycleTests: XCTestCase {
         )
         let service = makeService(loginItem: loginItem, processes: processes, helperURL: helperURL)
 
-        XCTAssertEqual(service.ensureRegistered(), .available)
+        let result = await service.ensureRegistered()
+        XCTAssertEqual(result, .available)
         XCTAssertEqual(recorder.calls, ["terminate:60"])
         XCTAssertTrue(processes.runningHelpers.contains { $0.processIdentifier == 50 })
     }
@@ -275,7 +285,7 @@ private final class StubWindowHelperProcessController: WindowHelperProcessContro
         runningHelpers.removeAll { identifiers.contains($0.processIdentifier) }
     }
 
-    func launchHelper(at url: URL) -> Error? {
+    func launchHelper(at url: URL) async -> Error? {
         recorder.calls.append("launch:\(url.path)")
         if let launchError { return launchError }
         runningHelpers = [WindowHelperProcess(processIdentifier: 99, bundleURL: helperURL)]

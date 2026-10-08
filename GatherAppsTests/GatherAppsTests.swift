@@ -141,7 +141,7 @@ final class GatherAppsTests: XCTestCase {
         XCTAssertEqual(app.executablePath, "/opt/homebrew/bin/scrcpy")
     }
 
-    func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() throws {
+    func testGroupActivationRaisesAppsSoGroupOrderDeterminesFrontmostApp() async throws {
         let groupID = UUID()
         let group = AppGroup(
             id: groupID,
@@ -167,7 +167,7 @@ final class GatherAppsTests: XCTestCase {
             activationService: activationService
         )
 
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
 
         XCTAssertEqual(activationService.requestedApps.map(\.id), [
             "com.example.Third",
@@ -181,7 +181,7 @@ final class GatherAppsTests: XCTestCase {
         ])
     }
 
-    func testGroupActivationActivatesExecutableTargets() throws {
+    func testGroupActivationActivatesExecutableTargets() async throws {
         let groupID = UUID()
         let executable = GroupedApp(
             executablePath: "/opt/homebrew/bin/scrcpy",
@@ -208,7 +208,7 @@ final class GatherAppsTests: XCTestCase {
             activationService: activationService
         )
 
-        store.activate(groupID: groupID)
+        await store.activate(groupID: groupID)
 
         XCTAssertEqual(activationService.requestedApps, [executable])
         XCTAssertEqual(store.lastActivationResults, [

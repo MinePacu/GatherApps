@@ -57,14 +57,19 @@ final class SwitcherViewModel: ObservableObject {
         setSelectedIndex(min(selectedIndex + 1, groups.count - 1))
     }
 
-    func activateSelectedGroup() {
-        guard groups.indices.contains(selectedIndex) else { return }
-        activateGroup(groups[selectedIndex])
+    @discardableResult
+    func activateSelectedGroup() -> Task<Void, Never>? {
+        guard groups.indices.contains(selectedIndex) else { return nil }
+        return activateGroup(groups[selectedIndex])
     }
 
-    func activateGroup(_ group: AppGroup) {
-        store.activate(groupID: group.id)
+    /// Dismisses the switcher right away; the activation finishes in a main-actor task.
+    @discardableResult
+    func activateGroup(_ group: AppGroup) -> Task<Void, Never> {
         dismiss()
+        return Task {
+            await store.activate(groupID: group.id)
+        }
     }
 
     func dismiss() {

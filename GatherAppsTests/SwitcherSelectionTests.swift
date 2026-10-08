@@ -68,7 +68,7 @@ final class SwitcherSelectionTests: XCTestCase {
         XCTAssertTrue(viewModel.isSelected(second))
     }
 
-    func testDeletingAllGroupsResetsSelectionAndActivationIsNoOp() throws {
+    func testDeletingAllGroupsResetsSelectionAndActivationIsNoOp() async throws {
         let (store, activationService) = try makeStore(groupNames: ["First", "Second"])
         let viewModel = SwitcherViewModel(store: store)
         viewModel.select(store.groups[1])
@@ -82,7 +82,7 @@ final class SwitcherSelectionTests: XCTestCase {
 
         var dismissCount = 0
         viewModel.onDismiss = { dismissCount += 1 }
-        viewModel.activateSelectedGroup()
+        await viewModel.activateSelectedGroup()?.value
 
         XCTAssertEqual(dismissCount, 0)
         XCTAssertTrue(activationService.requestedApps.isEmpty)

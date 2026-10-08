@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class AppGroupStoreTests: XCTestCase {
-    func testCoordinatorRoutesSharedActionsThroughStoreAndSwitcher() throws {
+    func testCoordinatorRoutesSharedActionsThroughStoreAndSwitcher() async throws {
         let groupID = UUID()
         let group = AppGroup(
             id: groupID,
@@ -38,7 +38,7 @@ final class AppGroupStoreTests: XCTestCase {
             didShowMainWindow = true
         }
 
-        coordinator.activateGroup(id: groupID)
+        await coordinator.activateGroup(id: groupID).value
         coordinator.showSwitcher()
         coordinator.showMainWindow()
 

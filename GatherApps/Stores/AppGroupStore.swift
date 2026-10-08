@@ -23,6 +23,8 @@ final class AppGroupStore: ObservableObject {
     private let activationService: AppActivationProviding
     private let launcherGeneratorService: LauncherAppGeneratorService
     private var isSavingBlockedByUnreadableGroupsFile = false
+    /// The most recently requested activation; each new one waits for it so activations never overlap.
+    private var activationTask: Task<Void, Never>?
 
     init(
         groupsFileURL: URL? = nil,
@@ -118,11 +120,21 @@ final class AppGroupStore: ObservableObject {
         regenerateIcon(forGroupAt: index)
     }
 
-    func activate(groupID: AppGroup.ID) {
+    func activate(groupID: AppGroup.ID) async {
+        let previousActivation = activationTask
+        let activation = Task {
+            await previousActivation?.value
+            await performActivation(groupID: groupID)
+        }
+        activationTask = activation
+        await activation.value
+    }
+
+    private func performActivation(groupID: AppGroup.ID) async {
         guard let group = groups.first(where: { $0.id == groupID }) else { return }
         var resultsByIdentifier: [String: ActivationResult] = [:]
         let orderedApps = Self.frontmostActivationOrder(for: group)
-        let results = activationService.activateGroup(orderedApps)
+        let results = await activationService.activateGroup(orderedApps)
 
         for (app, result) in zip(orderedApps, results) {
             resultsByIdentifier[app.id] = result
@@ -139,12 +151,12 @@ final class AppGroupStore: ObservableObject {
         needsAccessibilityPermission = false
     }
 
-    func handleActivationURL(_ url: URL) -> AppGroup.ID? {
+    func handleActivationURL(_ url: URL) async -> AppGroup.ID? {
         guard let groupID = GatherAppsURLScheme.groupID(from: url) else {
             return nil
         }
 
-        activate(groupID: groupID)
+        await activate(groupID: groupID)
         return groupID
     }
 

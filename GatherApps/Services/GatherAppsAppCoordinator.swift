@@ -84,9 +84,13 @@ final class GatherAppsAppCoordinator: ObservableObject {
         statusBarController?.setVisible(settings.showsStatusBarItem)
     }
 
-    func activateGroup(id groupID: AppGroup.ID) {
-        store.activate(groupID: groupID)
-        statusBarController?.refresh()
+    /// Activation suspends while it waits on macOS and the window helper, so it runs in a main-actor task.
+    @discardableResult
+    func activateGroup(id groupID: AppGroup.ID) -> Task<Void, Never> {
+        Task {
+            await store.activate(groupID: groupID)
+            statusBarController?.refresh()
+        }
     }
 
     func showSwitcher() {
@@ -99,15 +103,17 @@ final class GatherAppsAppCoordinator: ObservableObject {
     }
 
     func handleActivationURL(_ url: URL) {
-        guard let groupID = store.handleActivationURL(url) else { return }
-        statusBarController?.refresh()
+        Task {
+            guard let groupID = await store.handleActivationURL(url) else { return }
+            statusBarController?.refresh()
 
-        if GatherAppsURLScheme.showsGatherAppsWindow(from: url) {
-            showMainWindow()
-        } else {
-            NSApp.hide(nil)
+            if GatherAppsURLScheme.showsGatherAppsWindow(from: url) {
+                showMainWindow()
+            } else {
+                NSApp.hide(nil)
+            }
+
+            _ = groupID
         }
-
-        _ = groupID
     }
 }

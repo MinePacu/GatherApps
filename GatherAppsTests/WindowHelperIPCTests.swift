@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class WindowHelperIPCTests: XCTestCase {
-    func testProbeReturnsRuntimeInformationFromExpectedHelper() {
+    func testProbeReturnsRuntimeInformationFromExpectedHelper() async {
         let expectedURL = Bundle.main.bundleURL
         let center = DistributedNotificationCenter.default()
         let observer = installResponder(center: center) { request in
@@ -21,9 +21,10 @@ final class WindowHelperIPCTests: XCTestCase {
         defer { center.removeObserver(observer) }
 
         let client = NotificationWindowHelperClient(timeout: 0.5, expectedHelperURL: expectedURL)
+        let runtimeInfo = await client.probe()
 
         XCTAssertEqual(
-            client.probe(),
+            runtimeInfo,
             WindowHelperRuntimeInfo(
                 bundleURL: expectedURL,
                 protocolVersion: WindowHelperConfiguration.protocolVersion,
@@ -32,7 +33,7 @@ final class WindowHelperIPCTests: XCTestCase {
         )
     }
 
-    func testClientIgnoresResponseFromUnexpectedHelperPath() {
+    func testClientIgnoresResponseFromUnexpectedHelperPath() async {
         let expectedURL = Bundle.main.bundleURL
         let unexpectedURL = expectedURL
             .deletingLastPathComponent()
@@ -49,10 +50,12 @@ final class WindowHelperIPCTests: XCTestCase {
 
         let client = NotificationWindowHelperClient(timeout: 0.05, expectedHelperURL: expectedURL)
 
-        XCTAssertNil(client.probe())
+        let runtimeInfo = await client.probe()
+
+        XCTAssertNil(runtimeInfo)
     }
 
-    func testPermissionRequestUsesDedicatedOperation() {
+    func testPermissionRequestUsesDedicatedOperation() async {
         let expectedURL = Bundle.main.bundleURL
         let center = DistributedNotificationCenter.default()
         var receivedOperation: String?
@@ -67,7 +70,7 @@ final class WindowHelperIPCTests: XCTestCase {
         defer { center.removeObserver(observer) }
 
         let client = NotificationWindowHelperClient(timeout: 0.5, expectedHelperURL: expectedURL)
-        let runtimeInfo = client.requestAccessibilityPermission()
+        let runtimeInfo = await client.requestAccessibilityPermission()
 
         XCTAssertEqual(receivedOperation, WindowHelperOperation.requestAccessibilityPermission.rawValue)
         XCTAssertEqual(runtimeInfo?.accessibilityTrusted, false)

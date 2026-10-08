@@ -335,9 +335,16 @@ final class StatusBarController: NSObject {
     }
 
     @objc func requestAccessibilityPermission() {
-        switch windowHelperRegistrationService.ensureRegistered() {
+        Task {
+            await performAccessibilityPermissionRequest()
+        }
+    }
+
+    /// Awaitable body of `requestAccessibilityPermission()`; the helper round-trip suspends instead of blocking.
+    func performAccessibilityPermissionRequest() async {
+        switch await windowHelperRegistrationService.ensureRegistered() {
         case .available:
-            let runtimeInfo = windowHelperClient.requestAccessibilityPermission()
+            let runtimeInfo = await windowHelperClient.requestAccessibilityPermission()
             if runtimeInfo == nil {
                 store.lastErrorMessage = L10n.format(
                     "activation.helperUnavailable",
@@ -354,10 +361,26 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func restartWindowHelper() {
-        if case .unavailable(let reason) = windowHelperRegistrationService.restart() {
-            store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
+        Task {
+            if case .unavailable(let reason) = await windowHelperRegistrationService.restart() {
+                store.lastErrorMessage = L10n.format("activation.helperUnavailable", reason)
+            }
+            refresh()
         }
-        refresh()
+    }
+
+    /// Probes the helper and fills in the Window Raising status items, which start out as "Checking...".
+    func updateWindowRaisingStatus() async {
+        let runtimeInfo = await windowHelperClient.probe()
+        windowHelperStatusItem?.title = L10n.format(
+            "statusBar.helper.format",
+            windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil)
+        )
+        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
+        accessibilityStatusItem?.title = L10n.format("statusBar.accessibility.format", accessibilityTitle)
+        if runtimeInfo?.accessibilityTrusted == true {
+            store.clearAccessibilityPermissionWarning()
+        }
     }
 
     @objc private func quitGatherApps() {
@@ -373,15 +396,9 @@ extension StatusBarController: NSMenuDelegate {
         }
         guard menu === windowRaisingMenu else { return }
 
-        let runtimeInfo = windowHelperClient.probe()
-        windowHelperStatusItem?.title = L10n.format(
-            "statusBar.helper.format",
-            windowHelperStatusTitle(isHelperRunning: runtimeInfo != nil)
-        )
-        let accessibilityTitle = StatusBarAccessibilityStatus.title(runtimeInfo: runtimeInfo)
-        accessibilityStatusItem?.title = L10n.format("statusBar.accessibility.format", accessibilityTitle)
-        if runtimeInfo?.accessibilityTrusted == true {
-            store.clearAccessibilityPermissionWarning()
+        // Keep the "Checking..." titles from populateMenu until the probe answers.
+        Task {
+            await updateWindowRaisingStatus()
         }
     }
 }

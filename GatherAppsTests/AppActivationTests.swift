@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class AppActivationTests: XCTestCase {
-    func testActivationUsesWindowHelperBeforeFallbackActivation() {
+    func testActivationUsesWindowHelperBeforeFallbackActivation() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -20,7 +20,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .success(appName: "Example"))
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 1)
@@ -28,7 +28,7 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(app.activationOptions.isEmpty)
     }
 
-    func testActivationFallsBackWhenAccessibilityPermissionIsMissing() {
+    func testActivationFallsBackWhenAccessibilityPermissionIsMissing() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -44,13 +44,13 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationFallsBackWhenHelperCannotRaiseWindows() {
+    func testActivationFallsBackWhenHelperCannotRaiseWindows() async {
         let helperFailures: [WindowHelperActivationResult] = [
             .noWindowsFound(appName: "Example"),
             .raiseFailed(appName: "Example")
@@ -69,14 +69,14 @@ final class AppActivationTests: XCTestCase {
                 helperClient: StubWindowHelperClient(result: helperFailure)
             )
 
-            let result = service.activate(bundleIdentifier: "com.example.App")
+            let result = await service.activate(bundleIdentifier: "com.example.App")
 
             XCTAssertEqual(result, .success(appName: "Example"))
             XCTAssertEqual(app.activationOptions, [.activateAllWindows])
         }
     }
 
-    func testActivationPreservesAccessibilityErrorWhenFallbackActivationFails() {
+    func testActivationPreservesAccessibilityErrorWhenFallbackActivationFails() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -89,13 +89,13 @@ final class AppActivationTests: XCTestCase {
             helperClient: StubWindowHelperClient(result: .accessibilityPermissionMissing)
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .accessibilityPermissionMissing(appName: "Example"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationFallsBackToApplicationActivationWhenRegistrationIsUnavailable() {
+    func testActivationFallsBackToApplicationActivationWhenRegistrationIsUnavailable() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -113,14 +113,14 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .success(appName: "Example"))
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationPreservesRegistrationErrorWhenFallbackActivationFails() {
+    func testActivationPreservesRegistrationErrorWhenFallbackActivationFails() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -138,14 +138,14 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .helperUnavailable(reason: "Login item requires user approval."))
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationFallsBackToApplicationActivationWhenHelperIsUnavailable() {
+    func testActivationFallsBackToApplicationActivationWhenHelperIsUnavailable() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -161,13 +161,13 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .success(appName: "Example"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testActivationPreservesHelperErrorWhenFallbackActivationFails() {
+    func testActivationPreservesHelperErrorWhenFallbackActivationFails() async {
         let app = StubActivatableApplication(
             bundleIdentifier: "com.example.App",
             localizedName: "Example",
@@ -183,13 +183,13 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let result = service.activate(bundleIdentifier: "com.example.App")
+        let result = await service.activate(bundleIdentifier: "com.example.App")
 
         XCTAssertEqual(result, .helperUnavailable(reason: "missing helper"))
         XCTAssertEqual(app.activationOptions, [.activateAllWindows])
     }
 
-    func testExecutableActivationActivatesRunningExecutableApplicationWithoutWindowHelper() {
+    func testExecutableActivationActivatesRunningExecutableApplicationWithoutWindowHelper() async {
         let app = StubActivatableApplication(
             bundleIdentifier: nil,
             localizedName: "scrcpy",
@@ -210,7 +210,7 @@ final class AppActivationTests: XCTestCase {
             appPath: nil
         )
 
-        let result = service.activate(target)
+        let result = await service.activate(target)
 
         XCTAssertEqual(result, .success(appName: "scrcpy"))
         XCTAssertEqual(appProvider.requestedExecutablePaths, ["/opt/homebrew/bin/scrcpy"])
@@ -219,7 +219,7 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
     }
 
-    func testGroupActivationChecksHelperRegistrationOnce() {
+    func testGroupActivationChecksHelperRegistrationOnce() async {
         let apps = makeRunningApps(count: 3, activationResult: false)
         let registrationService = StubWindowHelperRegistrationService(result: .available)
         let helperClient = StubWindowHelperClient(
@@ -236,7 +236,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let results = service.activateGroup(makeGroupedApps(count: 3))
+        let results = await service.activateGroup(makeGroupedApps(count: 3))
 
         XCTAssertEqual(results, [
             .success(appName: "Example 0"),
@@ -251,7 +251,7 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(apps.allSatisfy { $0.activationOptions.isEmpty })
     }
 
-    func testGroupActivationSkipsHelperAfterHelperStopsResponding() {
+    func testGroupActivationSkipsHelperAfterHelperStopsResponding() async {
         let apps = makeRunningApps(count: 3, activationResult: true)
         let registrationService = StubWindowHelperRegistrationService(result: .available)
         let helperClient = StubWindowHelperClient(result: .helperUnavailable(reason: "timeout"))
@@ -261,7 +261,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let results = service.activateGroup(makeGroupedApps(count: 3))
+        let results = await service.activateGroup(makeGroupedApps(count: 3))
 
         XCTAssertEqual(results, [
             .success(appName: "Example 0"),
@@ -275,7 +275,7 @@ final class AppActivationTests: XCTestCase {
         }
     }
 
-    func testGroupActivationReportsMissingAccessibilityForEachAppAfterFallback() {
+    func testGroupActivationReportsMissingAccessibilityForEachAppAfterFallback() async {
         let apps = makeRunningApps(count: 2, activationResult: true)
         let registrationService = StubWindowHelperRegistrationService(result: .available)
         let helperClient = StubWindowHelperClient(result: .accessibilityPermissionMissing)
@@ -285,7 +285,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let results = service.activateGroup(makeGroupedApps(count: 2))
+        let results = await service.activateGroup(makeGroupedApps(count: 2))
 
         XCTAssertEqual(results, [
             .accessibilityPermissionMissing(appName: "Example 0"),
@@ -298,7 +298,7 @@ final class AppActivationTests: XCTestCase {
         }
     }
 
-    func testGroupActivationUsesFallbackForAllAppsWhenRegistrationIsUnavailable() {
+    func testGroupActivationUsesFallbackForAllAppsWhenRegistrationIsUnavailable() async {
         let apps = makeRunningApps(count: 3, activationResult: true)
         let registrationService = StubWindowHelperRegistrationService(result: .unavailable(reason: "x"))
         let helperClient = StubWindowHelperClient(result: .raised(appName: "unused", raisedWindowCount: 1))
@@ -308,7 +308,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let results = service.activateGroup(makeGroupedApps(count: 3))
+        let results = await service.activateGroup(makeGroupedApps(count: 3))
 
         XCTAssertEqual(results, [
             .success(appName: "Example 0"),
@@ -322,7 +322,7 @@ final class AppActivationTests: XCTestCase {
         }
     }
 
-    func testGroupActivationDoesNotCheckRegistrationWhenNoAppIsRunning() {
+    func testGroupActivationDoesNotCheckRegistrationWhenNoAppIsRunning() async {
         let registrationService = StubWindowHelperRegistrationService(result: .available)
         let helperClient = StubWindowHelperClient(result: .raised(appName: "unused", raisedWindowCount: 1))
         let service = AppActivationService(
@@ -331,7 +331,7 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        let results = service.activateGroup(makeGroupedApps(count: 2))
+        let results = await service.activateGroup(makeGroupedApps(count: 2))
 
         XCTAssertEqual(results, [
             .appNotRunning(bundleIdentifier: "com.example.App0"),
@@ -341,7 +341,7 @@ final class AppActivationTests: XCTestCase {
         XCTAssertTrue(helperClient.requestedBundleIdentifiers.isEmpty)
     }
 
-    func testSingleActivationStillChecksRegistrationEachCall() {
+    func testSingleActivationStillChecksRegistrationEachCall() async {
         let apps = makeRunningApps(count: 1, activationResult: false)
         let registrationService = StubWindowHelperRegistrationService(result: .available)
         let helperClient = StubWindowHelperClient(result: .raised(appName: "Example 0", raisedWindowCount: 1))
@@ -351,8 +351,8 @@ final class AppActivationTests: XCTestCase {
             helperClient: helperClient
         )
 
-        _ = service.activate(bundleIdentifier: "com.example.App0")
-        _ = service.activate(bundleIdentifier: "com.example.App0")
+        _ = await service.activate(bundleIdentifier: "com.example.App0")
+        _ = await service.activate(bundleIdentifier: "com.example.App0")
 
         XCTAssertEqual(registrationService.ensureRegisteredCallCount, 2)
         XCTAssertEqual(helperClient.requestedBundleIdentifiers, ["com.example.App0", "com.example.App0"])
@@ -436,7 +436,7 @@ private final class StubWindowHelperRegistrationService: WindowHelperRegistratio
         self.result = result
     }
 
-    func ensureRegistered() -> WindowHelperRegistrationResult {
+    func ensureRegistered() async -> WindowHelperRegistrationResult {
         ensureRegisteredCallCount += 1
         return result
     }
@@ -455,7 +455,7 @@ private final class StubWindowHelperClient: WindowHelperClient {
         self.resultsByBundleIdentifier = resultsByBundleIdentifier
     }
 
-    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
+    func raiseWindows(bundleIdentifier: String) async -> WindowHelperActivationResult {
         requestedBundleIdentifiers.append(bundleIdentifier)
         return resultsByBundleIdentifier[bundleIdentifier] ?? result
     }
@@ -465,12 +465,12 @@ final class StubAppActivationService: AppActivationProviding {
     private(set) var requestedApps: [GroupedApp] = []
     private(set) var requestedBundleIdentifiers: [String] = []
 
-    func activate(_ app: GroupedApp) -> ActivationResult {
+    func activate(_ app: GroupedApp) async -> ActivationResult {
         requestedApps.append(app)
         return .success(appName: app.name)
     }
 
-    func activate(bundleIdentifier: String) -> ActivationResult {
+    func activate(bundleIdentifier: String) async -> ActivationResult {
         requestedBundleIdentifiers.append(bundleIdentifier)
         return .success(appName: bundleIdentifier)
     }

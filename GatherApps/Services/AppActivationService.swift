@@ -16,14 +16,18 @@ protocol ApplicationProviding {
 }
 
 protocol AppActivationProviding {
-    func activate(_ app: GroupedApp) -> ActivationResult
-    func activate(bundleIdentifier: String) -> ActivationResult
-    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult]
+    func activate(_ app: GroupedApp) async -> ActivationResult
+    func activate(bundleIdentifier: String) async -> ActivationResult
+    func activateGroup(_ apps: [GroupedApp]) async -> [ActivationResult]
 }
 
 extension AppActivationProviding {
-    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult] {
-        apps.map { activate($0) }
+    func activateGroup(_ apps: [GroupedApp]) async -> [ActivationResult] {
+        var results: [ActivationResult] = []
+        for app in apps {
+            results.append(await activate(app))
+        }
+        return results
     }
 }
 
@@ -42,25 +46,25 @@ enum WindowHelperRegistrationResult: Equatable {
 }
 
 protocol WindowHelperRegistrationProviding {
-    func ensureRegistered() -> WindowHelperRegistrationResult
-    func restart() -> WindowHelperRegistrationResult
+    func ensureRegistered() async -> WindowHelperRegistrationResult
+    func restart() async -> WindowHelperRegistrationResult
 }
 
 extension WindowHelperRegistrationProviding {
-    func restart() -> WindowHelperRegistrationResult {
-        ensureRegistered()
+    func restart() async -> WindowHelperRegistrationResult {
+        await ensureRegistered()
     }
 }
 
 protocol WindowHelperClient {
-    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult
-    func probe() -> WindowHelperRuntimeInfo?
-    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo?
+    func raiseWindows(bundleIdentifier: String) async -> WindowHelperActivationResult
+    func probe() async -> WindowHelperRuntimeInfo?
+    func requestAccessibilityPermission() async -> WindowHelperRuntimeInfo?
 }
 
 extension WindowHelperClient {
-    func probe() -> WindowHelperRuntimeInfo? { nil }
-    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo? { nil }
+    func probe() async -> WindowHelperRuntimeInfo? { nil }
+    func requestAccessibilityPermission() async -> WindowHelperRuntimeInfo? { nil }
 }
 
 enum WindowHelperConfiguration {
@@ -97,28 +101,32 @@ struct AppActivationService: AppActivationProviding {
         case unavailable(reason: String)
     }
 
-    func activate(_ app: GroupedApp) -> ActivationResult {
+    func activate(_ app: GroupedApp) async -> ActivationResult {
         var helperAvailability: HelperAvailability?
-        return activate(app, helperAvailability: &helperAvailability)
+        return await activate(app, helperAvailability: &helperAvailability)
     }
 
-    func activate(bundleIdentifier: String) -> ActivationResult {
+    func activate(bundleIdentifier: String) async -> ActivationResult {
         var helperAvailability: HelperAvailability?
-        return activate(bundleIdentifier: bundleIdentifier, helperAvailability: &helperAvailability)
+        return await activate(bundleIdentifier: bundleIdentifier, helperAvailability: &helperAvailability)
     }
 
-    func activateGroup(_ apps: [GroupedApp]) -> [ActivationResult] {
+    func activateGroup(_ apps: [GroupedApp]) async -> [ActivationResult] {
         var helperAvailability: HelperAvailability?
-        return apps.map { activate($0, helperAvailability: &helperAvailability) }
+        var results: [ActivationResult] = []
+        for app in apps {
+            results.append(await activate(app, helperAvailability: &helperAvailability))
+        }
+        return results
     }
 
     private func activate(
         _ app: GroupedApp,
         helperAvailability: inout HelperAvailability?
-    ) -> ActivationResult {
+    ) async -> ActivationResult {
         switch app.kind {
         case .bundle:
-            return activate(bundleIdentifier: app.bundleIdentifier, helperAvailability: &helperAvailability)
+            return await activate(bundleIdentifier: app.bundleIdentifier, helperAvailability: &helperAvailability)
         case .executable:
             guard let executablePath = app.executablePath else {
                 return .appNotRunning(bundleIdentifier: app.bundleIdentifier)
@@ -130,23 +138,23 @@ struct AppActivationService: AppActivationProviding {
     private func activate(
         bundleIdentifier: String,
         helperAvailability: inout HelperAvailability?
-    ) -> ActivationResult {
+    ) async -> ActivationResult {
         guard let app = applicationProvider.runningApplication(bundleIdentifier: bundleIdentifier) else {
             return .appNotRunning(bundleIdentifier: bundleIdentifier)
         }
 
         let appName = app.localizedName ?? bundleIdentifier
-        resolveHelperAvailability(&helperAvailability)
+        await resolveHelperAvailability(&helperAvailability)
 
         if case .unavailable(let reason)? = helperAvailability {
-            return fallbackActivation(
+            return await fallbackActivation(
                 app,
                 appName: appName,
                 failureResult: .helperUnavailable(reason: reason)
             )
         }
 
-        switch helperClient.raiseWindows(bundleIdentifier: bundleIdentifier) {
+        switch await helperClient.raiseWindows(bundleIdentifier: bundleIdentifier) {
         case .raised(let helperAppName, _):
             return .success(appName: helperAppName)
         case .appNotRunning:
@@ -155,16 +163,16 @@ struct AppActivationService: AppActivationProviding {
             // Still bring the app forward, but report the missing permission
             // even when the fallback succeeds so the user is told how to fix it.
             let failureResult = ActivationResult.accessibilityPermissionMissing(appName: appName)
-            _ = fallbackActivation(app, appName: appName, failureResult: failureResult)
+            _ = await fallbackActivation(app, appName: appName, failureResult: failureResult)
             return failureResult
         case .noWindowsFound(let helperAppName):
-            return fallbackActivation(
+            return await fallbackActivation(
                 app,
                 appName: appName,
                 failureResult: .noWindowsFound(appName: helperAppName)
             )
         case .raiseFailed(let helperAppName):
-            return fallbackActivation(
+            return await fallbackActivation(
                 app,
                 appName: appName,
                 failureResult: .windowRaiseFailed(appName: helperAppName)
@@ -172,7 +180,7 @@ struct AppActivationService: AppActivationProviding {
         case .helperUnavailable(let reason):
             // Skip the IPC round-trip (and its timeout) for the rest of the group.
             helperAvailability = .unavailable(reason: reason)
-            return fallbackActivation(
+            return await fallbackActivation(
                 app,
                 appName: appName,
                 failureResult: .helperUnavailable(reason: reason)
@@ -180,9 +188,9 @@ struct AppActivationService: AppActivationProviding {
         }
     }
 
-    private func resolveHelperAvailability(_ helperAvailability: inout HelperAvailability?) {
+    private func resolveHelperAvailability(_ helperAvailability: inout HelperAvailability?) async {
         guard helperAvailability == nil else { return }
-        switch helperRegistrationService.ensureRegistered() {
+        switch await helperRegistrationService.ensureRegistered() {
         case .available:
             helperAvailability = .available
         case .unavailable(let reason):
@@ -194,16 +202,17 @@ struct AppActivationService: AppActivationProviding {
         _ app: ActivatableApplication,
         appName: String,
         failureResult: ActivationResult
-    ) -> ActivationResult {
+    ) async -> ActivationResult {
         guard app.activate(options: [.activateAllWindows]) else {
             return failureResult
         }
 
         // Activation is asynchronous. Let macOS finish each request before the
         // group sends the next one, otherwise only the final app may come forward.
+        // Sleeping suspends instead of blocking, so the main actor stays responsive.
         let deadline = Date().addingTimeInterval(0.5)
-        while !app.isActive, Date() < deadline {
-            RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
+        while !app.isActive, Date() < deadline, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(10))
         }
 
         return .success(appName: appName)
@@ -340,49 +349,53 @@ struct NotificationWindowHelperClient: WindowHelperClient {
         self.expectedHelperURL = expectedHelperURL
     }
 
-    func raiseWindows(bundleIdentifier: String) -> WindowHelperActivationResult {
-        send(operation: .raiseWindows, bundleIdentifier: bundleIdentifier)?.activationResult
+    func raiseWindows(bundleIdentifier: String) async -> WindowHelperActivationResult {
+        await send(operation: .raiseWindows, bundleIdentifier: bundleIdentifier)?.activationResult
             ?? .helperUnavailable(reason: L10n.string("activation.reason.helperDidNotRespond"))
     }
 
-    func probe() -> WindowHelperRuntimeInfo? {
-        send(operation: .probe)?.runtimeInfo
+    func probe() async -> WindowHelperRuntimeInfo? {
+        await send(operation: .probe)?.runtimeInfo
     }
 
-    func requestAccessibilityPermission() -> WindowHelperRuntimeInfo? {
-        send(operation: .requestAccessibilityPermission)?.runtimeInfo
+    func requestAccessibilityPermission() async -> WindowHelperRuntimeInfo? {
+        await send(operation: .requestAccessibilityPermission)?.runtimeInfo
     }
 
     private func send(
         operation: WindowHelperOperation,
         bundleIdentifier: String? = nil
-    ) -> WindowHelperProcessResult? {
+    ) async -> WindowHelperProcessResult? {
         let center = DistributedNotificationCenter.default()
         let requestID = UUID().uuidString
-        var response: WindowHelperProcessResult?
+        let expectedHelperURL = expectedHelperURL
+        let waiter = OneShotTimeoutWaiter<WindowHelperProcessResult?>()
 
+        // The observer runs on the main queue, so it can deliver to the main-actor waiter directly.
         let observer = center.addObserver(
             forName: WindowHelperNotification.response,
             object: nil,
             queue: .main
         ) { notification in
-            guard
-                let userInfo = notification.userInfo,
-                userInfo[WindowHelperNotification.requestIDKey] as? String == requestID
-            else {
-                return
-            }
+            MainActor.assumeIsolated {
+                guard
+                    let userInfo = notification.userInfo,
+                    userInfo[WindowHelperNotification.requestIDKey] as? String == requestID
+                else {
+                    return
+                }
 
-            let candidate = WindowHelperProcessResult(userInfo: userInfo)
-            guard
-                candidate.protocolVersion == WindowHelperConfiguration.protocolVersion,
-                let helperBundleURL = candidate.helperBundleURL,
-                WindowHelperBundleDiagnostics.urlsReferToSameBundle(helperBundleURL, expectedHelperURL)
-            else {
-                return
-            }
+                let candidate = WindowHelperProcessResult(userInfo: userInfo)
+                guard
+                    candidate.protocolVersion == WindowHelperConfiguration.protocolVersion,
+                    let helperBundleURL = candidate.helperBundleURL,
+                    WindowHelperBundleDiagnostics.urlsReferToSameBundle(helperBundleURL, expectedHelperURL)
+                else {
+                    return
+                }
 
-            response = candidate
+                waiter.finish(candidate)
+            }
         }
 
         defer {
@@ -405,12 +418,7 @@ struct NotificationWindowHelperClient: WindowHelperClient {
             deliverImmediately: true
         )
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while response == nil, Date() < deadline {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-        }
-
-        return response
+        return await waiter.wait(timeout: timeout, timeoutValue: nil)
     }
 }
 
