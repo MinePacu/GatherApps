@@ -98,6 +98,16 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
     }
 
     func ensureRegistered() async -> WindowHelperRegistrationResult {
+        await WindowHelperLifecycleSerializer.run { await performEnsureRegistered() }
+    }
+
+    func restart() async -> WindowHelperRegistrationResult {
+        await WindowHelperLifecycleSerializer.run { await performRestart() }
+    }
+
+    // The perform methods run inside the serializer and must only call private helpers;
+    // calling `ensureRegistered()` or `restart()` from here would wait on itself forever.
+    private func performEnsureRegistered() async -> WindowHelperRegistrationResult {
         guard FileManager.default.fileExists(atPath: helperURL.path) else {
             return .unavailable(reason: WindowHelperBundleDiagnostics.notFoundReason())
         }
@@ -136,7 +146,7 @@ struct LoginItemWindowHelperRegistrationService: WindowHelperRegistrationProvidi
         }
     }
 
-    func restart() async -> WindowHelperRegistrationResult {
+    private func performRestart() async -> WindowHelperRegistrationResult {
         let hadStaleHelpers = hasStaleHelpers
         terminateAllHelpers()
         _ = await waitUntil(timeout: transitionTimeout) { processController.runningHelpers.isEmpty }
