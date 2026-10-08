@@ -1,6 +1,8 @@
 import Foundation
 
 final class LauncherActivationController {
+    static let backgroundRelaunchArgument = "--gatherapps-background-relaunch"
+
     private let minimumActivationInterval: TimeInterval
     private let now: () -> Date
     private let dispatchActivation: () -> Void
@@ -17,6 +19,19 @@ final class LauncherActivationController {
         self.now = now
         self.dispatchActivation = dispatchActivation
         self.hideLauncher = hideLauncher
+    }
+
+    func handleLaunch(arguments: [String]) {
+        guard arguments.contains(Self.backgroundRelaunchArgument) else {
+            handleActivation()
+            return
+        }
+
+        // GatherApps relaunched this launcher after regenerating it; the user did not
+        // ask to activate the group. Treat the launch as the latest activation so an
+        // immediate didBecomeActive is debounced as well.
+        lastActivationDate = now()
+        hideLauncher()
     }
 
     func handleActivation() {

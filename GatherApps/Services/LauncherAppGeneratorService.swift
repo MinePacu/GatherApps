@@ -152,6 +152,14 @@ struct LauncherAppGeneratorService {
     func defaultDestinationDirectory() throws -> URL {
         try customDefaultDestinationDirectory ?? AppSupportPaths.userLaunchersDirectory
     }
+
+    /// Relaunching a regenerated launcher must not bring its group forward.
+    static func backgroundRelaunchConfiguration() -> NSWorkspace.OpenConfiguration {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.arguments = [LauncherActivationController.backgroundRelaunchArgument]
+        return configuration
+    }
 }
 
 private extension LauncherAppGeneratorService {
@@ -369,7 +377,7 @@ private final class NSWorkspaceLauncherAppLifecycleManager: LauncherAppLifecycle
     }
 
     func launchLauncher(at appURL: URL) {
-        let configuration = NSWorkspace.OpenConfiguration()
+        let configuration = LauncherAppGeneratorService.backgroundRelaunchConfiguration()
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
     }
 

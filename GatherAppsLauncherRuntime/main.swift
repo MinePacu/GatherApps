@@ -13,7 +13,7 @@ private final class LauncherAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        activationController.handleActivation()
+        activationController.handleLaunch(arguments: CommandLine.arguments)
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
