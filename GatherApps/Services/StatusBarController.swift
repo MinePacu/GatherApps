@@ -44,6 +44,9 @@ final class StatusBarController: NSObject {
     private let windowHelperRegistrationService: WindowHelperRegistrationProviding
     private let windowHelperClient: WindowHelperClient
     private let windowHelperServiceStatusProvider: () -> SMAppService.Status
+    private let mainAppLoginItemStatusProvider: () -> SMAppService.Status
+    private let registerMainAppLoginItem: () throws -> Void
+    private let unregisterMainAppLoginItem: () throws -> Void
     private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
     private let openURL: (URL) -> Void
     /// Persistent menu attached to the status item. Its contents are rebuilt every time it is about to open
@@ -62,6 +65,9 @@ final class StatusBarController: NSObject {
         windowHelperRegistrationService: WindowHelperRegistrationProviding? = nil,
         windowHelperClient: WindowHelperClient? = nil,
         windowHelperServiceStatusProvider: (() -> SMAppService.Status)? = nil,
+        mainAppLoginItemStatusProvider: (() -> SMAppService.Status)? = nil,
+        registerMainAppLoginItem: (() throws -> Void)? = nil,
+        unregisterMainAppLoginItem: (() throws -> Void)? = nil,
         setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil,
         openURL: ((URL) -> Void)? = nil
     ) {
@@ -78,6 +84,9 @@ final class StatusBarController: NSObject {
         self.windowHelperServiceStatusProvider = windowHelperServiceStatusProvider ?? {
             SMAppService.loginItem(identifier: WindowHelperConfiguration.loginItemIdentifier).status
         }
+        self.mainAppLoginItemStatusProvider = mainAppLoginItemStatusProvider ?? { SMAppService.mainApp.status }
+        self.registerMainAppLoginItem = registerMainAppLoginItem ?? { try SMAppService.mainApp.register() }
+        self.unregisterMainAppLoginItem = unregisterMainAppLoginItem ?? { try SMAppService.mainApp.unregister() }
         self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
         self.openURL = openURL ?? { NSWorkspace.shared.open($0) }
         super.init()
@@ -134,7 +143,16 @@ final class StatusBarController: NSObject {
         return menu
     }
 
+    private func syncLaunchAtLoginSetting() {
+        let status = mainAppLoginItemStatusProvider()
+        let isRegistered = status == .enabled || status == .requiresApproval
+        if settings.launchesAtLogin != isRegistered {
+            settings.launchesAtLogin = isRegistered
+        }
+    }
+
     private func populateMenu(_ menu: NSMenu) {
+        syncLaunchAtLoginSetting()
         menu.removeAllItems()
         menu.addItem(headerItem(title: "GatherApps"))
         if store.needsAccessibilityPermission {
@@ -277,14 +295,15 @@ final class StatusBarController: NSObject {
         actions.showMainWindow()
     }
 
-    @objc private func toggleLaunchAtLogin() {
+    @objc func toggleLaunchAtLogin() {
         settings.launchesAtLogin.toggle()
         do {
             if settings.launchesAtLogin {
-                try SMAppService.mainApp.register()
+                try registerMainAppLoginItem()
             } else {
-                try SMAppService.mainApp.unregister()
+                try unregisterMainAppLoginItem()
             }
+            syncLaunchAtLoginSetting()
         } catch {
             settings.launchesAtLogin.toggle()
             store.lastErrorMessage = error.localizedDescription

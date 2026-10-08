@@ -10,6 +10,7 @@ final class GatherAppsAppCoordinator: ObservableObject {
 
     private let showSwitcherAction: (AppGroupStore) -> Void
     private let activateAppAction: () -> Void
+    private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
     private let switcherWindowController: SwitcherWindowController
     private var statusBarController: StatusBarController?
     private var cancellables: Set<AnyCancellable> = []
@@ -19,7 +20,8 @@ final class GatherAppsAppCoordinator: ObservableObject {
         settings: MenuBarSettings? = nil,
         switcherWindowController: SwitcherWindowController? = nil,
         showSwitcherAction: ((AppGroupStore) -> Void)? = nil,
-        activateAppAction: (() -> Void)? = nil
+        activateAppAction: (() -> Void)? = nil,
+        setActivationPolicy: ((NSApplication.ActivationPolicy) -> Void)? = nil
     ) {
         let store = store ?? AppGroupStore()
         let settings = settings ?? MenuBarSettings()
@@ -34,6 +36,7 @@ final class GatherAppsAppCoordinator: ObservableObject {
         self.activateAppAction = activateAppAction ?? {
             NSApp.activate(ignoringOtherApps: true)
         }
+        self.setActivationPolicy = setActivationPolicy ?? { NSApp.setActivationPolicy($0) }
 
         store.$groups
             .sink { [weak self] _ in
@@ -57,6 +60,11 @@ final class GatherAppsAppCoordinator: ObservableObject {
 
     func startStatusBar() {
         guard statusBarController == nil else { return }
+        if !settings.showsDockIcon, !settings.showsStatusBarItem {
+            // Older builds allowed hiding both; keep at least one way to reach the app.
+            settings.showsDockIcon = true
+        }
+        setActivationPolicy(settings.showsDockIcon ? .regular : .accessory)
         statusBarController = StatusBarController(
             store: store,
             settings: settings,
@@ -70,7 +78,8 @@ final class GatherAppsAppCoordinator: ObservableObject {
                 showMainWindow: { [weak self] in
                     self?.showMainWindow()
                 }
-            )
+            ),
+            setActivationPolicy: setActivationPolicy
         )
         statusBarController?.setVisible(settings.showsStatusBarItem)
     }
